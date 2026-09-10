@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasmota 遠端控制面板</title>
+  <!-- 引入 MQTT.js 函式庫 -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #1e1e2e;
+      --card-bg: #2b2b3d;
+      --accent-color: #89b4fa;
+      --success-color: #a6e3a1;
+      --danger-color: #f38ba8;
+      --text-color: #cdd6f4;
+      --inactive-tab: #313244;
+      --tasmota-green: #2ecc71;
+      --tasmota-green-hover: #27ae60;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 600px;
+    }
+    h1 { text-align: center; color: var(--accent-color); margin-bottom: 20px; }
+
+    /* 頁籤選單 (Tabs Header) */
+    .tab-header {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 15px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 12px 8px;
+      background-color: var(--inactive-tab);
+      color: var(--text-color);
+      border: none;
+      border-radius: 8px 8px 0 0;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    .tab-btn.active {
+      background-color: var(--card-bg);
+      color: var(--accent-color);
+      border-bottom: 3px solid var(--accent-color);
+    }
+
+    /* 頁籤內容 (Tab Content) */
+    .tab-content {
+      display: none;
+      background-color: var(--card-bg);
+      border-radius: 0 0 12px 12px;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+    .tab-content.active {
+      display: block;
+    }
+
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-size: 0.9rem; }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #45475a;
+      background-color: #181825;
+      color: #fff;
+      box-sizing: border-box;
+      font-size: 1rem;
+    }
+    button.btn-primary {
+      background-color: var(--accent-color);
+      color: #11111b;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+      margin-top: 8px;
+    }
+    button.btn-primary:hover { opacity: 0.9; }
+    .btn-danger { background-color: var(--danger-color); color: #fff; border: none; font-weight: bold; cursor: pointer; }
+    .btn-secondary { background-color: #45475a; color: #fff; border: none; font-weight: bold; cursor: pointer; }
+    .btn-secondary:hover { background-color: #585b70; }
+    
+    .btn-group { display: flex; gap: 10px; }
+    .btn-group button { flex: 1; padding: 12px; border-radius: 6px; font-size: 1rem; }
+    
+    /* 狀態看板樣式 */
+    .status-bar {
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+      font-weight: bold;
+      margin-top: 15px;
+      background-color: #181825;
+    }
+    .device-status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 15px;
+      margin-bottom: 15px;
+    }
+    .device-box {
+      background-color: #181825;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      border: 1px solid #45475a;
+    }
+    .device-title { font-size: 0.95rem; font-weight: bold; color: #a6adc8; margin-bottom: 8px; }
+    .status-row { font-size: 0.85rem; margin: 4px 0; }
+    .status-online { color: var(--success-color); font-weight: bold; }
+    .status-offline { color: var(--danger-color); font-weight: bold; }
+    .status-unknown { color: #f9e2af; font-weight: bold; }
+    .state-on { color: var(--success-color); font-weight: bold; }
+    .state-off { color: #a6adc8; font-weight: bold; }
+    
+    .section-title { font-size: 1.1rem; border-bottom: 1px solid #45475a; padding-bottom: 8px; margin-top: 0; margin-bottom: 15px; }
+
+    /* --- Tasmota 仿製風格定時器面板 --- */
+    .tasmota-fieldset {
+      border: 2px solid #585b70;
+      border-radius: 8px;
+      padding: 15px;
+      background-color: #181825;
+      margin-top: 10px;
+    }
+    .tasmota-fieldset legend {
+      color: #cdd6f4;
+      font-weight: bold;
+      padding: 0 8px;
+      font-size: 1rem;
+    }
+    .tasmota-enable-top {
+      text-align: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #45475a;
+      margin-bottom: 15px;
+      font-weight: bold;
+    }
+    .timer-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+      margin-bottom: 15px;
+    }
+    .timer-num-btn {
+      padding: 8px 0;
+      background-color: #45475a;
+      color: #a6adc8;
+      border: 1px solid #585b70;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-align: center;
+    }
+    .timer-num-btn.active {
+      background-color: var(--accent-color);
+      color: #11111b;
+      border-color: #b4befe;
+    }
+    .inline-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      margin-bottom: 15px;
+      gap: 10px;
+    }
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .checkbox-label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-color);
+      cursor: pointer;
+    }
+    .week-days-grid {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin: 15px 0;
+      padding: 10px;
+      background-color: #1e1e2e;
+      border-radius: 6px;
+    }
+    .btn-save-tasmota {
+      background-color: var(--tasmota-green);
+      color: #ffffff;
+      font-size: 1.1rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      padding: 12px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 10px;
+    }
+    .btn-save-tasmota:hover {
+      background-color: var(--tasmota-green-hover);
+    }
+    .loading-hint {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #f9e2af;
+      margin-bottom: 8px;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>WIFI開關控制面板</h1>
+
+  <!-- 頁籤按鈕區 -->
+  <div class="tab-header">
+    <button class="tab-btn active" onclick="switchTab(0)">連線與狀態</button>
+    <button class="tab-btn" onclick="switchTab(1)">即時控制</button>
+    <button class="tab-btn" onclick="switchTab(2)">定時器設定</button>
+  </div>
+
+  <!-- 分頁 1: HiveMQ Cloud 連線設定 -->
+  <div class="tab-content active">
+    <h2 class="section-title">HiveMQ Cloud 連線設定</h2>
+    <div class="form-group">
+      <label>Cluster Host（不要加 wss://）：</label>
+      <input type="text" id="host" value="625f8a43c90c4cdcb582516b174b7193.s1.eu.hivemq.cloud">
+    </div>
+    <div class="form-group">
+      <label>Port (WebSocket SSL)：</label>
+      <input type="number" id="port" value="8884">
+    </div>
+    <div class="form-group">
+      <label>Username：</label>
+      <input type="text" id="username" value="cnliang">
+    </div>
+    <div class="form-group">
+      <label>Password：</label>
+      <input type="password" id="password" value="Cnl-7558">
+    </div>
+    <button class="btn-primary" onclick="connectMQTT()">連線至 HiveMQ</button>
+
+    <div id="broker-status" class="status-bar status-offline">MQTT Broker：未連線</div>
+  </div>
+
+  <!-- 分頁 2: 設備連線狀況監控與即時控制 -->
+  <div class="tab-content">
+    <h2 class="section-title">設備狀況監控</h2>
+    
+    <div class="device-status-grid">
+      <div class="device-box">
+        <div class="device-title">加壓馬達</div>
+        <div class="status-row">連線：<span id="pump-lwt" class="status-unknown">未知</span></div>
+        <div class="status-row">狀態：<span id="pump-power" class="status-unknown">未知</span></div>
+      </div>
+      <div class="device-box">
+        <div class="device-title">熱水器</div>
+        <div class="status-row">連線：<span id="heater-lwt" class="status-unknown">未知</span></div>
+        <div class="status-row">狀態：<span id="heater-power" class="status-unknown">未知</span></div>
+      </div>
+    </div>
+
+    <!-- 重新整理最新狀態按鈕 -->
+    <button class="btn-secondary" onclick="refreshStatus()" style="margin-bottom: 25px;">🔄 重新整理最新狀態</button>
+
+    <h2 class="section-title">加壓馬達即時控制</h2>
+    <div class="btn-group">
+      <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON')">開啟加壓馬達</button>
+      <button class="btn-danger" onclick="publishCmd('cmnd/pump/POWER', 'OFF')">關閉加壓馬達</button>
+    </div>
+
+    <h2 class="section-title" style="margin-top: 25px;">熱水器即時控制</h2>
+    <div class="btn-group">
+      <button class="btn-primary" onclick="publishCmd('cmnd/heater/POWER', 'ON')">開啟熱水器</button>
+      <button class="btn-danger" onclick="publishCmd('cmnd/heater/POWER', 'OFF')">關閉熱水器</button>
+    </div>
+
+    <!-- 新增：煮水情境控制按鈕區塊 -->
+    <h2 class="section-title" style="margin-top: 25px;">煮水情境控制</h2>
+    <div class="btn-group">
+      <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 410; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水五分鐘</button>
+      <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 710; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水十分鐘</button>
+    </div>
+  </div>
+
+  <!-- 分頁 3: 仿 Tasmota 原生定時器介面 -->
+  <div class="tab-content">
+    <div class="form-group">
+      <label style="font-weight: bold; font-size: 1rem;">控制對象：</label>
+      <select id="timer-device" style="background-color: #2b2b3d; font-weight: bold;" onchange="onDeviceOrTimerChange()">
+        <option value="pump">加壓馬達開關</option>
+        <option value="heater">熱水器開關</option>
+      </select>
+    </div>
+
+    <fieldset class="tasmota-fieldset">
+      <legend>定時器參數</legend>
+
+      <div class="tasmota-enable-top">
+        <label class="checkbox-label">
+          <input type="checkbox" id="enable-all-timers">
+          <span>啟用全域定時功能</span>
+        </label>
+      </div>
+
+      <div class="timer-grid" id="timer-num-selector"></div>
+
+      <!-- 讀取狀態提示字樣 -->
+      <div id="loading-hint" class="loading-hint"></div>
+
+      <div class="form-group">
+        <label>動作</label>
+        <select id="timer-action">
+          <option value="1">開啟</option>
+          <option value="0">關閉</option>
+        </select>
+      </div>
+
+      <div class="inline-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="timer-single-enable">
+          <span>啟用此定時器</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="timer-repeat">
+          <span>重複</span>
+        </label>
+      </div>
+
+      <div class="form-group" style="text-align: center;">
+        <label>觸發時間 (12小時制)</label>
+        <input type="time" id="timer-time" value="12:00" style="text-align: center; font-size: 1.2rem; width: 60%; margin: 0 auto;">
+      </div>
+
+      <div class="week-days-grid">
+        <label class="checkbox-label"><input type="checkbox" class="day-check" value="0">日</label>
+        <label class="checkbox-label"><input type="checkbox" class="day-check" value="1">一</label>
+        <label class="checkbox-label"><input type="checkbox" class="day-check" value="2">二</label>
+        <label class="checkbox-label"><input type="checkbox" class="day-check" value="3">三</label>
+        <label class="checkbox-label"><input type="checkbox" class="day-check" value="4">四</label>
+        <label class="checkbox-label"><input type="checkbox" class="day-check" value="5">五</label>
+        <label class="checkbox-label"><input type="checkbox" class="day-check" value="6">六</label>
+      </div>
+
+      <button class="btn-save-tasmota" onclick="saveTasmotaTimer()">儲存設定</button>
+    </fieldset>
+  </div>
+</div>
+
+<script>
+  let client = null;
+  let selectedTimerId = 1;
+
+  function initTimerGrid() {
+    const grid = document.getElementById('timer-num-selector');
+    grid.innerHTML = '';
+    for (let i = 1; i <= 16; i++) {
+      const btn = document.createElement('div');
+      btn.className = `timer-num-btn ${i === selectedTimerId ? 'active' : ''}`;
+      btn.innerText = i;
+      btn.onclick = () => {
+        selectedTimerId = i;
+        document.querySelectorAll('.timer-num-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        onDeviceOrTimerChange(); // 當切換定時器編號時，自動向 Tasmota 查詢
+      };
+      grid.appendChild(btn);
+    }
+  }
+  initTimerGrid();
+
+  function switchTab(index) {
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+    tabs.forEach((tab, i) => {
+      if (i === index) {
+        tab.classList.add('active');
+        contents[i].classList.add('active');
+      } else {
+        tab.classList.remove('active');
+        contents[i].classList.remove('active');
+      }
+    });
+
+    // 切換到定時器分頁時自動查詢
+    if (index === 2) {
+      onDeviceOrTimerChange();
+    }
+  }
+
+  function connectMQTT() {
+    const host = document.getElementById('host').value.trim();
+    const port = document.getElementById('port').value.trim();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+
+    if (!host || !username || !password) {
+      alert('請填寫完整的 HiveMQ 連線資訊！');
+      return;
+    }
+
+    const connectUrl = `wss://${host}:${port}/mqtt`;
+    const clientId = 'web_client_' + Math.random().toString(16).substr(2, 8);
+
+    document.getElementById('broker-status').innerText = 'MQTT Broker：連線中...';
+
+    client = mqtt.connect(connectUrl, {
+      clientId: clientId,
+      username: username,
+      password: password,
+      clean: true,
+      connectTimeout: 5000,
+      reconnectPeriod: 2000,
+    });
+
+    client.on('connect', () => {
+      const brokerDiv = document.getElementById('broker-status');
+      brokerDiv.innerText = 'MQTT Broker：🟢 正常連線中';
+      brokerDiv.className = 'status-bar status-online';
+
+      // 訂閱連線狀況 (LWT) 與 狀態回應
+      client.subscribe('tele/pump/LWT');
+      client.subscribe('tele/heater/LWT');
+      client.subscribe('stat/pump/+');
+      client.subscribe('stat/heater/+');
+      client.subscribe('tele/pump/STATE');
+      client.subscribe('tele/heater/STATE');
+
+      // 連線成功後自動查詢最新狀態
+      refreshStatus();
+    });
+
+    client.on('message', (topic, message) => {
+      const msgStr = message.toString();
+
+      // 解析 LWT 狀況
+      if (topic === 'tele/pump/LWT') updateLWTUI('pump-lwt', msgStr);
+      if (topic === 'tele/heater/LWT') updateLWTUI('heater-lwt', msgStr);
+
+      // 解析 pump 的開關狀態
+      if (topic.includes('/pump/')) {
+        parsePowerState('pump-power', topic, msgStr);
+      }
+      // 解析 heater 的開關狀態
+      if (topic.includes('/heater/')) {
+        parsePowerState('heater-power', topic, msgStr);
+      }
+
+      // 解析 Timer 回傳之 JSON 資料 (包含 Timer1~16 以及 Timers 全域開關)
+      parseTimerState(topic, msgStr);
+    });
+
+    client.on('error', (err) => {
+      console.error('Connection error: ', err);
+      const brokerDiv = document.getElementById('broker-status');
+      brokerDiv.innerText = 'MQTT Broker：🔴 連線失敗';
+      brokerDiv.className = 'status-bar status-offline';
+    });
+
+    client.on('offline', () => {
+      const brokerDiv = document.getElementById('broker-status');
+      brokerDiv.innerText = 'MQTT Broker：🔴 已離線';
+      brokerDiv.className = 'status-bar status-offline';
+      updateLWTUI('pump-lwt', 'Unknown');
+      updateLWTUI('heater-lwt', 'Unknown');
+      updatePowerUI('pump-power', 'Unknown');
+      updatePowerUI('heater-power', 'Unknown');
+    });
+  }
+
+  // 當選擇的設備或 Timer 編號改變時，自動發送 MQTT 查詢該 Timer 與全域 Timers 開關
+  function onDeviceOrTimerChange() {
+    if (!client || !client.connected) return;
+
+    const device = document.getElementById('timer-device').value;
+    document.getElementById('loading-hint').innerText = `⏳ 正在載入【${device === 'pump' ? '加壓馬達' : '熱水器'}】Timer ${selectedTimerId} 設定...`;
+
+    // 發送空白 payload 查詢當前 Timer 以及 全域 Timers 狀態
+    client.publish(`cmnd/${device}/Timers`, '');
+    client.publish(`cmnd/${device}/Timer${selectedTimerId}`, '');
+  }
+
+  // 解析 Tasmota 回傳的 Timer JSON 物件
+  function parseTimerState(topic, msgStr) {
+    const currentDevice = document.getElementById('timer-device').value;
+    if (!topic.includes(`/${currentDevice}/`)) return;
+
+    try {
+      const json = JSON.parse(msgStr);
+      
+      // 1. 解析全域 Enable Timers 狀態
+      if (json.Timers !== undefined) {
+        const isTimersOn = (json.Timers === "ON" || json.Timers === 1 || json.Timers === "1" || json.Timers === true);
+        document.getElementById('enable-all-timers').checked = isTimersOn;
+      }
+
+      // 2. 解析特定 Timer1~16 設定
+      let timerData = null;
+      const keyName = `Timer${selectedTimerId}`;
+
+      if (json[keyName]) {
+        timerData = json[keyName];
+      } else if (json.Arm !== undefined || json.Enable !== undefined) {
+        timerData = json;
+      }
+
+      if (timerData) {
+        document.getElementById('loading-hint').innerText = `✅ 已讀取 Timer ${selectedTimerId} 最新設定！`;
+        setTimeout(() => { document.getElementById('loading-hint').innerText = ''; }, 3000);
+
+        // 帶入 Enable / Arm 狀態
+        const isArmed = timerData.Arm !== undefined ? timerData.Arm === 1 : timerData.Enable === 1;
+        document.getElementById('timer-single-enable').checked = isArmed;
+
+        // 帶入 Time
+        if (timerData.Time) {
+          document.getElementById('timer-time').value = timerData.Time;
+        }
+
+        // 帶入 Action (0: Off, 1: On)
+        if (timerData.Action !== undefined) {
+          document.getElementById('timer-action').value = timerData.Action;
+        }
+
+        // 帶入 Repeat
+        if (timerData.Repeat !== undefined) {
+          document.getElementById('timer-repeat').checked = (timerData.Repeat === 1);
+        }
+
+        // 帶入 Days
+        if (timerData.Days) {
+          parseDaysMask(timerData.Days);
+        }
+      }
+    } catch (e) {
+      // 非 JSON 格式忽略
+    }
+  }
+
+  // 解析 Days 掩碼並填入星期核取方塊
+  function parseDaysMask(days) {
+    const dayChecks = document.querySelectorAll('.day-check');
+    
+    if (/^[01]{7}$/.test(days)) {
+      for (let i = 0; i < 7; i++) {
+        dayChecks[i].checked = (days[i] === '1');
+      }
+    } else {
+      for (let i = 0; i < 7; i++) {
+        if (days[i] && days[i] !== '-' && days[i] !== '0') {
+          dayChecks[i].checked = true;
+        } else {
+          dayChecks[i].checked = false;
+        }
+      }
+    }
+  }
+
+  // 刷新最新狀態的函式 (即時控制頁面用)
+  function refreshStatus() {
+    if (!client || !client.connected) {
+      alert('請先連線至 HiveMQ！');
+      return;
+    }
+    client.publish('cmnd/pump/POWER', '');
+    client.publish('cmnd/heater/POWER', '');
+    client.publish('cmnd/pump/State', '');
+    client.publish('cmnd/heater/State', '');
+  }
+
+  // 更新 LWT UI
+  function updateLWTUI(elementId, statusText) {
+    const el = document.getElementById(elementId);
+    if (statusText === 'Online') {
+      el.innerText = '🟢 在線';
+      el.className = 'status-online';
+    } else if (statusText === 'Offline') {
+      el.innerText = '🔴 離線';
+      el.className = 'status-offline';
+    } else {
+      el.innerText = '🟡 未知';
+      el.className = 'status-unknown';
+    }
+  }
+
+  // 解析並更新 POWER 狀態
+  function parsePowerState(elementId, topic, msgStr) {
+    if (topic.endsWith('/POWER') || topic.endsWith('/POWER1')) {
+      updatePowerUI(elementId, msgStr);
+    } else {
+      try {
+        const json = JSON.parse(msgStr);
+        if (json.POWER !== undefined) updatePowerUI(elementId, json.POWER);
+        else if (json.POWER1 !== undefined) updatePowerUI(elementId, json.POWER1);
+      } catch (e) {
+        // 非 JSON 格式則忽略
+      }
+    }
+  }
+
+  // 更新 Power UI
+  function updatePowerUI(elementId, powerText) {
+    const el = document.getElementById(elementId);
+    const upperText = powerText.toUpperCase();
+    if (upperText === 'ON') {
+      el.innerText = '⚡ 開啟';
+      el.className = 'state-on';
+    } else if (upperText === 'OFF') {
+      el.innerText = '⚪ 關閉';
+      el.className = 'state-off';
+    } else {
+      el.innerText = '🟡 未知';
+      el.className = 'status-unknown';
+    }
+  }
+
+  function publishCmd(topic, payload) {
+    if (!client || !client.connected) {
+      alert('請先連線至 HiveMQ！');
+      return;
+    }
+    client.publish(topic, payload, { qos: 0 });
+  }
+
+  function saveTasmotaTimer() {
+    const device = document.getElementById('timer-device').value;
+    const enableAll = document.getElementById('enable-all-timers').checked ? 1 : 0;
+    const singleEnable = document.getElementById('timer-single-enable').checked ? 1 : 0;
+    const repeat = document.getElementById('timer-repeat').checked ? 1 : 0;
+    const action = parseInt(document.getElementById('timer-action').value);
+    const timeVal = document.getElementById('timer-time').value;
+
+    const dayChecks = document.querySelectorAll('.day-check');
+    let daysArray = ['0','0','0','0','0','0','0'];
+    dayChecks.forEach(chk => {
+      if (chk.checked) {
+        daysArray[parseInt(chk.value)] = '1';
+      }
+    });
+    const daysStr = daysArray.join('');
+
+    const timerPayload = JSON.stringify({
+      Enable: singleEnable,
+      Mode: 0,
+      Time: timeVal,
+      Window: 0,
+      Days: daysStr,
+      Repeat: repeat,
+      Output: 1,
+      Action: action
+    });
+
+    publishCmd(`cmnd/${device}/Timers`, enableAll.toString());
+    publishCmd(`cmnd/${device}/Timer${selectedTimerId}`, timerPayload);
+
+    alert(`已儲存【${device === 'pump' ? '加壓馬達' : '熱水器'}】Timer ${selectedTimerId} 設定！\n觸發時間：${timeVal}`);
+  }
+</script>
+
+</body>
+</html>
