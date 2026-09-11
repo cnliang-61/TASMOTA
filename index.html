@@ -193,16 +193,42 @@
       accent-color: var(--accent-color);
       cursor: pointer;
     }
+    
+    /* 星期按鈕風格與靠左緊湊排列 */
     .week-days-grid {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-start;
       flex-wrap: wrap;
-      gap: 5px;
+      gap: 6px;
       margin: 15px 0;
       padding: 10px;
       background-color: #1e1e2e;
       border-radius: 6px;
     }
+    .day-btn input[type="checkbox"] {
+      display: none;
+    }
+    .day-btn span {
+      display: inline-block;
+      min-width: 36px;
+      padding: 8px 0;
+      background-color: #45475a;
+      color: #a6adc8;
+      border: 1px solid #585b70;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+    .day-btn input[type="checkbox"]:checked + span {
+      background-color: var(--accent-color);
+      color: #11111b;
+      border-color: #b4befe;
+    }
+
     .btn-save-tasmota {
       background-color: var(--tasmota-green);
       color: #ffffff;
@@ -224,6 +250,17 @@
       color: #f9e2af;
       margin-bottom: 8px;
       min-height: 20px;
+    }
+
+    /* 自訂 12 小時制選擇器容器 */
+    .custom-time-picker {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .custom-time-picker select {
+      text-align: center;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -295,7 +332,7 @@
       <button class="btn-danger" onclick="publishCmd('cmnd/heater/POWER', 'OFF')">關閉熱水器</button>
     </div>
 
-    <!-- 新增：煮水情境控制按鈕區塊 -->
+    <!-- 煮水情境控制按鈕區塊 -->
     <h2 class="section-title" style="margin-top: 25px;">煮水情境控制</h2>
     <div class="btn-group">
       <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 410; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水五分鐘</button>
@@ -347,20 +384,29 @@
         </label>
       </div>
 
-<div class="form-group" style="text-align: center;">
-  <label>觸發時間 (24小時制)</label>
-  <input type="time" id="timer-time" value="18:30" style="text-align: center; font-size: 1.2rem; width: 100%;">
-</div>
+      <!-- 三個獨立下拉選單（上下午、時、分） -->
+      <div class="form-group">
+        <label>觸發時間</label>
+        <div class="custom-time-picker">
+          <select id="timer-ampm" style="flex: 1;">
+            <option value="AM">上午 (AM)</option>
+            <option value="PM" selected>下午 (PM)</option>
+          </select>
+          <select id="timer-hour" style="flex: 1;"></select>
+          <span style="font-weight: bold; font-size: 1.2rem;">:</span>
+          <select id="timer-minute" style="flex: 1;"></select>
+        </div>
+      </div>
 
-
+      <!-- 星期按鈕化選單 -->
       <div class="week-days-grid">
-        <label class="checkbox-label"><input type="checkbox" class="day-check" value="0">日</label>
-        <label class="checkbox-label"><input type="checkbox" class="day-check" value="1">一</label>
-        <label class="checkbox-label"><input type="checkbox" class="day-check" value="2">二</label>
-        <label class="checkbox-label"><input type="checkbox" class="day-check" value="3">三</label>
-        <label class="checkbox-label"><input type="checkbox" class="day-check" value="4">四</label>
-        <label class="checkbox-label"><input type="checkbox" class="day-check" value="5">五</label>
-        <label class="checkbox-label"><input type="checkbox" class="day-check" value="6">六</label>
+        <label class="day-btn"><input type="checkbox" class="day-check" value="0"><span>日</span></label>
+        <label class="day-btn"><input type="checkbox" class="day-check" value="1"><span>一</span></label>
+        <label class="day-btn"><input type="checkbox" class="day-check" value="2"><span>二</span></label>
+        <label class="day-btn"><input type="checkbox" class="day-check" value="3"><span>三</span></label>
+        <label class="day-btn"><input type="checkbox" class="day-check" value="4"><span>四</span></label>
+        <label class="day-btn"><input type="checkbox" class="day-check" value="5"><span>五</span></label>
+        <label class="day-btn"><input type="checkbox" class="day-check" value="6"><span>六</span></label>
       </div>
 
       <button class="btn-save-tasmota" onclick="saveTasmotaTimer()">儲存設定</button>
@@ -371,6 +417,33 @@
 <script>
   let client = null;
   let selectedTimerId = 1;
+
+  // 初始化自訂時間選擇器的選項 (時: 01-12, 分: 00-59)
+  function initTimePickerOptions() {
+    const hourSelect = document.getElementById('timer-hour');
+    const minSelect = document.getElementById('timer-minute');
+
+    hourSelect.innerHTML = '';
+    minSelect.innerHTML = '';
+
+    for (let h = 1; h <= 12; h++) {
+      const val = h.toString().padStart(2, '0');
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.innerText = val + ' 時';
+      if (h === 6) opt.selected = true; // 預設 06
+      hourSelect.appendChild(opt);
+    }
+
+    for (let m = 0; m < 60; m++) {
+      const val = m.toString().padStart(2, '0');
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.innerText = val + ' 分';
+      if (m === 30) opt.selected = true; // 預設 30
+      minSelect.appendChild(opt);
+    }
+  }
 
   function initTimerGrid() {
     const grid = document.getElementById('timer-num-selector');
@@ -388,6 +461,9 @@
       grid.appendChild(btn);
     }
   }
+  
+  // 網頁載入時初始化
+  initTimePickerOptions();
   initTimerGrid();
 
   function switchTab(index) {
@@ -533,9 +609,25 @@
         const isArmed = timerData.Arm !== undefined ? timerData.Arm === 1 : timerData.Enable === 1;
         document.getElementById('timer-single-enable').checked = isArmed;
 
-        // 帶入 Time
+        // 帶入 Time (將 Tasmota 的 24 小時制 "HH:mm" 轉換填入 UI)
         if (timerData.Time) {
-          document.getElementById('timer-time').value = timerData.Time;
+          const parts = timerData.Time.split(':');
+          if (parts.length === 2) {
+            let h = parseInt(parts[0], 10);
+            const m = parts[1];
+            let ampm = 'AM';
+
+            if (h >= 12) {
+              ampm = 'PM';
+              if (h > 12) h -= 12;
+            } else if (h === 0) {
+              h = 12;
+            }
+
+            document.getElementById('timer-ampm').value = ampm;
+            document.getElementById('timer-hour').value = h.toString().padStart(2, '0');
+            document.getElementById('timer-minute').value = m;
+          }
         }
 
         // 帶入 Action (0: Off, 1: On)
@@ -558,7 +650,7 @@
     }
   }
 
-  // 解析 Days 掩碼並填入星期核取方塊
+  // 解析 Days 掩碼並填入星期按鈕狀態
   function parseDaysMask(days) {
     const dayChecks = document.querySelectorAll('.day-check');
     
@@ -649,7 +741,16 @@
     const singleEnable = document.getElementById('timer-single-enable').checked ? 1 : 0;
     const repeat = document.getElementById('timer-repeat').checked ? 1 : 0;
     const action = parseInt(document.getElementById('timer-action').value);
-    const timeVal = document.getElementById('timer-time').value;
+    
+    // 將 UI 的 上下午/12小時制 組合轉換為 24 小時制 "HH:mm" 格式
+    const ampm = document.getElementById('timer-ampm').value;
+    let h = parseInt(document.getElementById('timer-hour').value, 10);
+    const m = document.getElementById('timer-minute').value;
+
+    if (ampm === 'PM' && h < 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+
+    const timeVal = `${h.toString().padStart(2, '0')}:${m}`;
 
     const dayChecks = document.querySelectorAll('.day-check');
     let daysArray = ['0','0','0','0','0','0','0'];
@@ -674,7 +775,8 @@
     publishCmd(`cmnd/${device}/Timers`, enableAll.toString());
     publishCmd(`cmnd/${device}/Timer${selectedTimerId}`, timerPayload);
 
-    alert(`已儲存【${device === 'pump' ? '加壓馬達' : '熱水器'}】Timer ${selectedTimerId} 設定！\n觸發時間：${timeVal}`);
+    const displayTime = `${ampm} ${document.getElementById('timer-hour').value}:${m} (24H: ${timeVal})`;
+    alert(`已儲存【${device === 'pump' ? '加壓馬達' : '熱水器'}】Timer ${selectedTimerId} 設定！\n觸發時間：${displayTime}`);
   }
 </script>
 
