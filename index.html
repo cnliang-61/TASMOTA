@@ -12,6 +12,7 @@
       --card-bg: #2b2b3d;
       --accent-color: #89b4fa;
       --success-color: #a6e3a1;
+      --switch-color: #a6e3a1; 
       --danger-color: #f38ba8;
       --text-color: #cdd6f4;
       --inactive-tab: #313244;
@@ -90,7 +91,8 @@
       margin-top: 8px;
     }
     button.btn-primary:hover { opacity: 0.9; }
-    .btn-danger { background-color: var(--danger-color); color: #fff; border: none; font-weight: bold; cursor: pointer;   border: none; margin-top: 8px;}
+    .btn-switch { background-color: var(--switch-color); color: #11111b; border: none; font-weight: bold; cursor: pointer;   border: none; margin-top: 8px;}
+    .btn-danger { background-color: var(--danger-color); color: #11111b; border: none; font-weight: bold; cursor: pointer;   border: none; margin-top: 8px;}
     .btn-secondary { background-color: #45475a; color: #fff; border: none; font-weight: bold; cursor: pointer; }
     .btn-secondary:hover { background-color: #585b70; }
     
@@ -337,7 +339,7 @@
       <div class="control-col">
         <h3 class="sub-section-title">加壓馬達即時控制</h3>
         <div class="btn-group">
-          <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON')">開啟</button>
+          <button class="btn-switch" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON')">開啟</button>
           <button class="btn-danger" onclick="publishCmd('cmnd/pump/POWER', 'OFF')">關閉</button>
         </div>
       </div>
@@ -345,7 +347,7 @@
       <div class="control-col">
         <h3 class="sub-section-title">熱水器即時控制</h3>
         <div class="btn-group">
-          <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">開啟</button>
+          <button class="btn-switch" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">開啟</button>
           <button class="btn-danger" onclick="publishCmd('cmnd/pump/Backlog', 'POWER OFF; Delay 100; POWER ON')">關閉</button>
         </div>
       </div>
