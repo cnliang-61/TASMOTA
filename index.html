@@ -365,13 +365,26 @@
       </div>
     </div>
 
-    <!-- 煮水情境控制按鈕區塊 -->
-    <h2 class="section-title" style="margin-top: 25px;">煮水情境控制</h2>
-    <div class="btn-group">
+
+    <!-- 左右雙欄：加壓馬達情境控制 (左) / 熱水器情境控制 (右) -->
+    <div class="dual-control-grid">
+      <div class="control-col">
+        <h2 class="section-title" style="margin-top: 25px;">加壓馬達情境控制</h2>
+        <div class="btn-group">
+      <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 700; POWER ON)">加壓十分鐘</button>
+      <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 1300; POWER ON)">加壓二十分鐘</button>
+        </div>
+      </div>
+
+      <div class="control-col">
+        <h2 class="section-title" style="margin-top: 25px;">熱水器情境控制</h2>
+        <div class="btn-group">
       <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 410; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水五分鐘</button>
       <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 710; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水十分鐘</button>
+
+        </div>
+      </div>
     </div>
-  </div>
 
   <!-- 分頁 3: 仿 Tasmota 原生定時器介面 -->
   <div class="tab-content">
