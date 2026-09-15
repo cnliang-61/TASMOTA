@@ -11,12 +11,15 @@
       --bg-color: #1e1e2e;
       --card-bg: #2b2b3d;
       --accent-color: #89b4fa;
-      --success-color: #a6e3a1;
-      --danger-color: #f38ba8;
       --text-color: #cdd6f4;
       --inactive-tab: #313244;
       --tasmota-green: #2ecc71;
       --tasmota-green-hover: #27ae60;
+      
+      /* 依圖片提取之精確色碼 */
+      --custom-green: #00964B; /* 開啟 */
+      --custom-red: #FF0000;   /* 關閉 */
+      --custom-grey: #7B8483;  /* 離線 */
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -82,29 +85,27 @@
       font-size: 1rem;
     }
     button.btn-success {
-  background-color: var(--success-color); 
-  color: #11111b;                          
-/* 文字顏色（深色） */
-  border: none;
-  font-weight: bold;
-  cursor: pointer;
-}
-.btn-success:hover { 
-  opacity: 0.9; 
-}
+      background-color: var(--custom-green); 
+      color: #ffffff;                          
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .btn-success:hover { 
+      opacity: 0.9; 
+    }
 
-/* 紅色按鈕（關閉） */
-.btn-danger { 
-  background-color: var(--danger-color); 
-  color: #11111b;                          
-/* 文字顏色（深色） */
-  border: none; 
-  font-weight: bold; 
-  cursor: pointer; 
-}
-.btn-danger:hover { 
-  opacity: 0.9; 
-}
+    /* 紅色按鈕（關閉） */
+    .btn-danger { 
+      background-color: var(--custom-red); 
+      color: #ffffff;                          
+      border: none; 
+      font-weight: bold; 
+      cursor: pointer; 
+    }
+    .btn-danger:hover { 
+      opacity: 0.9; 
+    }
     .btn-secondary { background-color: #45475a; color: #fff; border: none; font-weight: bold; cursor: pointer; }
     .btn-secondary:hover { background-color: #585b70; }
     
@@ -134,25 +135,52 @@
     .device-status-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      gap: 16px;
       margin-top: 15px;
-      margin-bottom: 15px;
+      margin-bottom: 20px;
     }
+    
+    /* 框外標題 */
+    .device-outside-title {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: var(--text-color);
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    /* 控制方框容器 */
     .device-box {
       background-color: #181825;
-      padding: 12px;
-      border-radius: 8px;
+      padding: 24px 12px;
+      border-radius: 12px;
       text-align: center;
       border: 1px solid #45475a;
     }
-    .device-title { font-size: 0.95rem; font-weight: bold; color: #a6adc8; margin-bottom: 8px; }
-    .status-row { font-size: 0.85rem; margin: 4px 0; }
-    .status-online { color: var(--success-color); font-weight: bold; }
-    .status-offline { color: var(--danger-color); font-weight: bold; }
-    .status-unknown { color: #f9e2af; font-weight: bold; }
-    .state-on { color: var(--success-color); font-weight: bold; }
-    .state-off { color: #a6adc8; font-weight: bold; }
     
+    /* 放大 3 倍的單一圖示與狀態顯示列 */
+    .status-single-row { 
+      font-size: 3.15rem; /* 放大3倍 (原本 1.05rem) */
+      font-weight: bold;
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      gap: 16px; 
+    }
+    
+    /* 放大 3 倍的電源圖示 */
+    .power-icon {
+      width: 66px;   /* 放大3倍 (原本 22px) */
+      height: 66px;  /* 放大3倍 (原本 22px) */
+      vertical-align: middle;
+      transition: fill 0.3s ease;
+    }
+    
+    /* 色彩對應 */
+    .status-green { color: var(--custom-green); fill: var(--custom-green); }
+    .status-red { color: var(--custom-red); fill: var(--custom-red); }
+    .status-grey { color: var(--custom-grey); fill: var(--custom-grey); }
+
     .section-title { font-size: 1.1rem; border-bottom: 1px solid #45475a; padding-bottom: 8px; margin-top: 0; margin-bottom: 15px; }
     .sub-section-title { font-size: 0.95rem; border-bottom: 1px solid #45475a; padding-bottom: 6px; margin-top: 0; margin-bottom: 10px; color: #a6adc8; }
 
@@ -220,7 +248,34 @@
       cursor: pointer;
     }
     
-    /* 星期按鈕風格與靠左緊湊排列 */
+    /* --- 定時器動作按鈕切換組 (紅色/綠色) --- */
+    .action-toggle-group {
+      display: flex;
+      gap: 10px;
+    }
+    .action-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #45475a;
+      background-color: #1e1e2e;
+      color: #a6adc8;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .action-btn.active-on {
+      background-color: var(--custom-green);
+      color: #ffffff;
+      border-color: var(--custom-green);
+    }
+    .action-btn.active-off {
+      background-color: var(--custom-red);
+      color: #ffffff;
+      border-color: var(--custom-red);
+    }
+
     .week-days-grid {
       display: flex;
       justify-content: flex-start;
@@ -278,7 +333,6 @@
       min-height: 20px;
     }
 
-    /* 自訂 12 小時制選擇器容器 */
     .custom-time-picker {
       display: flex;
       gap: 8px;
@@ -323,23 +377,38 @@
     </div>
     <button class="btn-primary" onclick="connectMQTT()">連線至 HiveMQ</button>
 
-    <div id="broker-status" class="status-bar status-offline">MQTT Broker：未連線</div>
+    <div id="broker-status" class="status-bar status-grey">MQTT Broker：未連線</div>
   </div>
 
-  <!-- 分頁 2: 設備連線狀況監控與即時控制 -->
+  <!-- 分頁 2: 設備狀況監控與即時控制 -->
   <div class="tab-content">
     <h2 class="section-title">設備狀況監控</h2>
     
     <div class="device-status-grid">
-      <div class="device-box">
-        <div class="device-title">加壓馬達</div>
-        <div class="status-row">連線：<span id="pump-lwt" class="status-unknown">未知</span></div>
-        <div class="status-row">狀態：<span id="pump-power" class="status-unknown">未知</span></div>
+      <!-- 加壓馬達區塊 -->
+      <div>
+        <div class="device-outside-title">加壓馬達</div>
+        <div class="device-box">
+          <div class="status-single-row">
+            <span id="pump-power" class="status-grey">
+              <svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
+              離線
+            </span>
+          </div>
+        </div>
       </div>
-      <div class="device-box">
-        <div class="device-title">熱水器</div>
-        <div class="status-row">連線：<span id="heater-lwt" class="status-unknown">未知</span></div>
-        <div class="status-row">狀態：<span id="heater-power" class="status-unknown">未知</span></div>
+
+      <!-- 熱水器區塊 -->
+      <div>
+        <div class="device-outside-title">熱水器</div>
+        <div class="device-box">
+          <div class="status-single-row">
+            <span id="heater-power" class="status-grey">
+              <svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
+              離線
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -351,16 +420,16 @@
       <div class="control-col">
         <h3 class="sub-section-title">加壓馬達即時控制</h3>
         <div class="btn-group">
-          <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON')">開啟</button>
-          <button class="btn-primary" onclick="publishCmd('cmnd/pump/POWER', 'OFF')">關閉</button>
+          <button class="btn-success" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON')">開啟</button>
+          <button class="btn-danger" onclick="publishCmd('cmnd/pump/POWER', 'OFF')">關閉</button>
         </div>
       </div>
 
       <div class="control-col">
         <h3 class="sub-section-title">熱水器即時控制</h3>
         <div class="btn-group">
-          <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">開啟</button>
-          <button class="btn-primary" onclick="publishCmd('cmnd/pump/Backlog', 'POWER OFF; Delay 100; POWER ON')">關閉</button>
+          <button class="btn-success" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">開啟</button>
+          <button class="btn-danger" onclick="publishCmd('cmnd/pump/Backlog', 'POWER OFF; Delay 100; POWER ON')">關閉</button>
         </div>
       </div>
     </div>
@@ -398,12 +467,14 @@
       <!-- 讀取狀態提示字樣 -->
       <div id="loading-hint" class="loading-hint"></div>
 
+      <!-- 改為彩色按鈕式動作切換開關 -->
       <div class="form-group">
         <label>動作</label>
-        <select id="timer-action">
-          <option value="1">開啟</option>
-          <option value="0">關閉</option>
-        </select>
+        <input type="hidden" id="timer-action" value="1">
+        <div class="action-toggle-group">
+          <button type="button" id="btn-action-on" class="action-btn active-on" onclick="setTimerAction(1)">開啟</button>
+          <button type="button" id="btn-action-off" class="action-btn" onclick="setTimerAction(0)">關閉</button>
+        </div>
       </div>
 
       <div class="inline-row">
@@ -451,7 +522,9 @@
   let client = null;
   let selectedTimerId = 1;
 
-  // 初始化自訂時間選擇器的選項 (時: 01-12, 分: 00-59)
+  // 電源 SVG 圖示
+  const powerIconSvg = `<svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>`;
+
   function initTimePickerOptions() {
     const hourSelect = document.getElementById('timer-hour');
     const minSelect = document.getElementById('timer-minute');
@@ -464,7 +537,7 @@
       const opt = document.createElement('option');
       opt.value = val;
       opt.innerText = val + ' 時';
-      if (h === 6) opt.selected = true; // 預設 06
+      if (h === 6) opt.selected = true;
       hourSelect.appendChild(opt);
     }
 
@@ -473,7 +546,7 @@
       const opt = document.createElement('option');
       opt.value = val;
       opt.innerText = val + ' 分';
-      if (m === 30) opt.selected = true; // 預設 30
+      if (m === 30) opt.selected = true;
       minSelect.appendChild(opt);
     }
   }
@@ -489,13 +562,27 @@
         selectedTimerId = i;
         document.querySelectorAll('.timer-num-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        onDeviceOrTimerChange(); // 當切換定時器編號時，自動向 Tasmota 查詢
+        onDeviceOrTimerChange();
       };
       grid.appendChild(btn);
     }
   }
   
-  // 網頁載入時初始化
+  // 切換「動作」按鈕樣式與隱藏欄位值
+  function setTimerAction(val) {
+    document.getElementById('timer-action').value = val;
+    const btnOn = document.getElementById('btn-action-on');
+    const btnOff = document.getElementById('btn-action-off');
+
+    if (val === 1 || val === "1") {
+      btnOn.className = 'action-btn active-on';
+      btnOff.className = 'action-btn';
+    } else {
+      btnOn.className = 'action-btn';
+      btnOff.className = 'action-btn active-off';
+    }
+  }
+
   initTimePickerOptions();
   initTimerGrid();
 
@@ -512,7 +599,6 @@
       }
     });
 
-    // 切換到定時器分頁時自動查詢
     if (index === 2) {
       onDeviceOrTimerChange();
     }
@@ -546,9 +632,8 @@
     client.on('connect', () => {
       const brokerDiv = document.getElementById('broker-status');
       brokerDiv.innerText = 'MQTT Broker：🟢 正常連線中';
-      brokerDiv.className = 'status-bar status-online';
+      brokerDiv.className = 'status-bar status-green';
 
-      // 訂閱連線狀況 (LWT) 與 狀態回應
       client.subscribe('tele/pump/LWT');
       client.subscribe('tele/heater/LWT');
       client.subscribe('stat/pump/+');
@@ -556,27 +641,26 @@
       client.subscribe('tele/pump/STATE');
       client.subscribe('tele/heater/STATE');
 
-      // 連線成功後自動查詢最新狀態
       refreshStatus();
     });
 
     client.on('message', (topic, message) => {
       const msgStr = message.toString();
 
-      // 解析 LWT 狀況
-      if (topic === 'tele/pump/LWT') updateLWTUI('pump-lwt', msgStr);
-      if (topic === 'tele/heater/LWT') updateLWTUI('heater-lwt', msgStr);
+      if (topic === 'tele/pump/LWT' && msgStr.toLowerCase() === 'offline') {
+        updatePowerUI('pump-power', 'OFFLINE');
+      }
+      if (topic === 'tele/heater/LWT' && msgStr.toLowerCase() === 'offline') {
+        updatePowerUI('heater-power', 'OFFLINE');
+      }
 
-      // 解析 pump 的開關狀態
       if (topic.includes('/pump/')) {
         parsePowerState('pump-power', topic, msgStr);
       }
-      // 解析 heater 的開關狀態
       if (topic.includes('/heater/')) {
         parsePowerState('heater-power', topic, msgStr);
       }
 
-      // 解析 Timer 回傳之 JSON 資料 (包含 Timer1~16 以及 Timers 全域開關)
       parseTimerState(topic, msgStr);
     });
 
@@ -584,33 +668,28 @@
       console.error('Connection error: ', err);
       const brokerDiv = document.getElementById('broker-status');
       brokerDiv.innerText = 'MQTT Broker：🔴 連線失敗';
-      brokerDiv.className = 'status-bar status-offline';
+      brokerDiv.className = 'status-bar status-red';
     });
 
     client.on('offline', () => {
       const brokerDiv = document.getElementById('broker-status');
       brokerDiv.innerText = 'MQTT Broker：🔴 已離線';
-      brokerDiv.className = 'status-bar status-offline';
-      updateLWTUI('pump-lwt', 'Unknown');
-      updateLWTUI('heater-lwt', 'Unknown');
-      updatePowerUI('pump-power', 'Unknown');
-      updatePowerUI('heater-power', 'Unknown');
+      brokerDiv.className = 'status-bar status-red';
+      updatePowerUI('pump-power', 'OFFLINE');
+      updatePowerUI('heater-power', 'OFFLINE');
     });
   }
 
-  // 當選擇的設備或 Timer 編號改變時，自動發送 MQTT 查詢該 Timer 與全域 Timers 開關
   function onDeviceOrTimerChange() {
     if (!client || !client.connected) return;
 
     const device = document.getElementById('timer-device').value;
     document.getElementById('loading-hint').innerText = `⏳ 正在載入【${device === 'pump' ? '加壓馬達' : '熱水器'}】Timer ${selectedTimerId} 設定...`;
 
-    // 發送空白 payload 查詢當前 Timer 以及 全域 Timers 狀態
     client.publish(`cmnd/${device}/Timers`, '');
     client.publish(`cmnd/${device}/Timer${selectedTimerId}`, '');
   }
 
-  // 解析 Tasmota 回傳的 Timer JSON 物件
   function parseTimerState(topic, msgStr) {
     const currentDevice = document.getElementById('timer-device').value;
     if (!topic.includes(`/${currentDevice}/`)) return;
@@ -618,13 +697,11 @@
     try {
       const json = JSON.parse(msgStr);
       
-      // 1. 解析全域 Enable Timers 狀態
       if (json.Timers !== undefined) {
         const isTimersOn = (json.Timers === "ON" || json.Timers === 1 || json.Timers === "1" || json.Timers === true);
         document.getElementById('enable-all-timers').checked = isTimersOn;
       }
 
-      // 2. 解析特定 Timer1~16 設定
       let timerData = null;
       const keyName = `Timer${selectedTimerId}`;
 
@@ -638,11 +715,9 @@
         document.getElementById('loading-hint').innerText = `✅ 已讀取 Timer ${selectedTimerId} 最新設定！`;
         setTimeout(() => { document.getElementById('loading-hint').innerText = ''; }, 3000);
 
-        // 帶入 Enable / Arm 狀態
         const isArmed = timerData.Arm !== undefined ? timerData.Arm === 1 : timerData.Enable === 1;
         document.getElementById('timer-single-enable').checked = isArmed;
 
-        // 帶入 Time (將 Tasmota 的 24 小時制 "HH:mm" 轉換填入 UI)
         if (timerData.Time) {
           const parts = timerData.Time.split(':');
           if (parts.length === 2) {
@@ -663,27 +738,22 @@
           }
         }
 
-        // 帶入 Action (0: Off, 1: On)
         if (timerData.Action !== undefined) {
-          document.getElementById('timer-action').value = timerData.Action;
+          setTimerAction(timerData.Action);
         }
 
-        // 帶入 Repeat
         if (timerData.Repeat !== undefined) {
           document.getElementById('timer-repeat').checked = (timerData.Repeat === 1);
         }
 
-        // 帶入 Days
         if (timerData.Days) {
           parseDaysMask(timerData.Days);
         }
       }
     } catch (e) {
-      // 非 JSON 格式忽略
     }
   }
 
-  // 解析 Days 掩碼並填入星期按鈕狀態
   function parseDaysMask(days) {
     const dayChecks = document.querySelectorAll('.day-check');
     
@@ -702,7 +772,6 @@
     }
   }
 
-  // 刷新最新狀態的函式 (即時控制頁面用)
   function refreshStatus() {
     if (!client || !client.connected) {
       alert('請先連線至 HiveMQ！');
@@ -714,22 +783,6 @@
     client.publish('cmnd/heater/State', '');
   }
 
-  // 更新 LWT UI
-  function updateLWTUI(elementId, statusText) {
-    const el = document.getElementById(elementId);
-    if (statusText === 'Online') {
-      el.innerText = '🟢 在線';
-      el.className = 'status-online';
-    } else if (statusText === 'Offline') {
-      el.innerText = '🔴 離線';
-      el.className = 'status-offline';
-    } else {
-      el.innerText = '🟡 未知';
-      el.className = 'status-unknown';
-    }
-  }
-
-  // 解析並更新 POWER 狀態
   function parsePowerState(elementId, topic, msgStr) {
     if (topic.endsWith('/POWER') || topic.endsWith('/POWER1')) {
       updatePowerUI(elementId, msgStr);
@@ -739,24 +792,23 @@
         if (json.POWER !== undefined) updatePowerUI(elementId, json.POWER);
         else if (json.POWER1 !== undefined) updatePowerUI(elementId, json.POWER1);
       } catch (e) {
-        // 非 JSON 格式則忽略
       }
     }
   }
 
-  // 更新 Power UI
   function updatePowerUI(elementId, powerText) {
     const el = document.getElementById(elementId);
     const upperText = powerText.toUpperCase();
+    
     if (upperText === 'ON') {
-      el.innerText = '⚡ 開啟';
-      el.className = 'state-on';
+      el.innerHTML = `${powerIconSvg} 開啟`;
+      el.className = 'status-green';
     } else if (upperText === 'OFF') {
-      el.innerText = '⚪ 關閉';
-      el.className = 'state-off';
+      el.innerHTML = `${powerIconSvg} 關閉`;
+      el.className = 'status-red';
     } else {
-      el.innerText = '🟡 未知';
-      el.className = 'status-unknown';
+      el.innerHTML = `${powerIconSvg} 離線`;
+      el.className = 'status-grey';
     }
   }
 
@@ -775,7 +827,6 @@
     const repeat = document.getElementById('timer-repeat').checked ? 1 : 0;
     const action = parseInt(document.getElementById('timer-action').value);
     
-    // 將 UI 的 上下午/12小時制 組合轉換為 24 小時制 "HH:mm" 格式
     const ampm = document.getElementById('timer-ampm').value;
     let h = parseInt(document.getElementById('timer-hour').value, 10);
     const m = document.getElementById('timer-minute').value;
