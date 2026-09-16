@@ -88,9 +88,25 @@
     
     .btn-secondary { background-color: #45475a; color: #fff; border: none; font-weight: bold; cursor: pointer; }
     .btn-secondary:hover { background-color: #585b70; }
-    
-    .btn-group { display: flex; gap: 8px; }
-    .btn-group button { flex: 1; padding: 12px 4px; border-radius: 6px; font-size: 0.9rem; font-weight: bold; }
+
+    /* 左右雙欄版面佈局 */
+    .control-grid-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 15px;
+    }
+    .control-column {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .control-column button {
+      padding: 14px 4px;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: bold;
+    }
 
     /* 情境/加壓按鈕倒數樣式 */
     .btn-boil {
@@ -137,7 +153,7 @@
       margin-bottom: 8px;
     }
 
-    /* 控制方框容器 - 改造為可點擊按鈕 */
+    /* 控制方框容器 */
     .device-box {
       background-color: #181825;
       padding: 24px 12px;
@@ -179,7 +195,7 @@
     .status-red { color: var(--custom-red); fill: var(--custom-red); }
     .status-grey { color: var(--custom-grey); fill: var(--custom-grey); }
 
-    .section-title { font-size: 1.1rem; border-bottom: 1px solid #45475a; padding-bottom: 8px; margin-top: 0; margin-bottom: 15px; }
+    .section-title { font-size: 1.1rem; border-bottom: 1px solid #45475a; padding-bottom: 8px; margin-top: 0; margin-bottom: 12px; }
 
     /* --- Tasmota 定時器面板 --- */
     .tasmota-fieldset {
@@ -411,18 +427,21 @@
     <!-- 重新整理最新狀態按鈕 -->
     <button class="btn-secondary" onclick="refreshStatus()" style="margin-bottom: 20px;">🔄 重新整理最新狀態</button>
 
-    <!-- 加壓控制按鈕區塊 (新增) -->
-    <h2 class="section-title" style="margin-top: 25px;">加壓控制</h2>
-    <div class="btn-group" style="margin-bottom: 25px;">
-      <button id="btn-pump-10" class="btn-boil" onclick="startBoilTimer('btn-pump-10', '加壓十分鐘', 600, 'cmnd/pump/Backlog', 'PulseTime1 700; POWER ON')">加壓十分鐘</button>
-      <button id="btn-pump-20" class="btn-boil" onclick="startBoilTimer('btn-pump-20', '加壓二十分鐘', 1200, 'cmnd/pump/Backlog', 'PulseTime1 1300; POWER ON')">加壓二十分鐘</button>
-    </div>
+    <!-- 左右雙欄控制按鈕區塊 -->
+    <div class="control-grid-container">
+      <!-- 左欄：加壓控制 (上下排列) -->
+      <div class="control-column">
+        <h2 class="section-title">加壓控制</h2>
+        <button id="btn-pump-10" class="btn-boil" onclick="startBoilTimer('btn-pump-10', '加壓十分鐘', 600, 'cmnd/pump/Backlog', 'PulseTime1 700; POWER ON')">加壓十分鐘</button>
+        <button id="btn-pump-20" class="btn-boil" onclick="startBoilTimer('btn-pump-20', '加壓二十分鐘', 1200, 'cmnd/pump/Backlog', 'PulseTime1 1300; POWER ON')">加壓二十分鐘</button>
+      </div>
 
-    <!-- 煮水情境控制按鈕區塊 -->
-    <h2 class="section-title">煮水情境控制</h2>
-    <div class="btn-group">
-      <button id="btn-boil-5" class="btn-boil" onclick="startBoilTimer('btn-boil-5', '煮水五分鐘', 300, 'cmnd/pump/Backlog', 'PulseTime1 410; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水五分鐘</button>
-      <button id="btn-boil-10" class="btn-boil" onclick="startBoilTimer('btn-boil-10', '煮水十分鐘', 600, 'cmnd/pump/Backlog', 'PulseTime1 710; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水十分鐘</button>
+      <!-- 右欄：煮水情境控制 (上下排列) -->
+      <div class="control-column">
+        <h2 class="section-title">煮水情境控制</h2>
+        <button id="btn-boil-5" class="btn-boil" onclick="startBoilTimer('btn-boil-5', '煮水五分鐘', 300, 'cmnd/pump/Backlog', 'PulseTime1 410; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水五分鐘</button>
+        <button id="btn-boil-10" class="btn-boil" onclick="startBoilTimer('btn-boil-10', '煮水十分鐘', 600, 'cmnd/pump/Backlog', 'PulseTime1 710; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水十分鐘</button>
+      </div>
     </div>
   </div>
 
