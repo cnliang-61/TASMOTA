@@ -20,7 +20,7 @@
       --custom-green: #00964B; /* 開啟 */
       --custom-red: #FF0000;   /* 關閉 */
       --custom-grey: #7B8483;  /* 離線 */
-      --custom-blue: #82ACFA;  /* 煮水中按鈕變色 */
+      --custom-blue: #82ACFA;  /* 運作中按鈕變色 */
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -92,7 +92,7 @@
     .btn-group { display: flex; gap: 8px; }
     .btn-group button { flex: 1; padding: 12px 4px; border-radius: 6px; font-size: 0.9rem; font-weight: bold; }
 
-    /* 煮水按鈕倒數樣式 */
+    /* 情境/加壓按鈕倒數樣式 */
     .btn-boil {
       background-color: #181825;
       border: 1px solid #45475a;
@@ -381,7 +381,7 @@
     <h2 class="section-title">設備狀況監控與控制</h2>
     
     <div class="device-status-grid">
-      <!-- 加壓馬達區塊 (可直接點擊切換開關) -->
+      <!-- 加壓馬達區塊 -->
       <div>
         <div class="device-outside-title">加壓馬達</div>
         <div class="device-box" onclick="togglePump()">
@@ -394,7 +394,7 @@
         </div>
       </div>
 
-      <!-- 熱水器區塊 (可直接點擊切換開關) -->
+      <!-- 熱水器區塊 -->
       <div>
         <div class="device-outside-title">熱水器</div>
         <div class="device-box" onclick="toggleHeater()">
@@ -411,8 +411,15 @@
     <!-- 重新整理最新狀態按鈕 -->
     <button class="btn-secondary" onclick="refreshStatus()" style="margin-bottom: 20px;">🔄 重新整理最新狀態</button>
 
+    <!-- 加壓控制按鈕區塊 (新增) -->
+    <h2 class="section-title" style="margin-top: 25px;">加壓控制</h2>
+    <div class="btn-group" style="margin-bottom: 25px;">
+      <button id="btn-pump-10" class="btn-boil" onclick="startBoilTimer('btn-pump-10', '加壓十分鐘', 600, 'cmnd/pump/Backlog', 'PulseTime1 700; POWER ON')">加壓十分鐘</button>
+      <button id="btn-pump-20" class="btn-boil" onclick="startBoilTimer('btn-pump-20', '加壓二十分鐘', 1200, 'cmnd/pump/Backlog', 'PulseTime1 1300; POWER ON')">加壓二十分鐘</button>
+    </div>
+
     <!-- 煮水情境控制按鈕區塊 -->
-    <h2 class="section-title" style="margin-top: 25px;">煮水情境控制</h2>
+    <h2 class="section-title">煮水情境控制</h2>
     <div class="btn-group">
       <button id="btn-boil-5" class="btn-boil" onclick="startBoilTimer('btn-boil-5', '煮水五分鐘', 300, 'cmnd/pump/Backlog', 'PulseTime1 410; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水五分鐘</button>
       <button id="btn-boil-10" class="btn-boil" onclick="startBoilTimer('btn-boil-10', '煮水十分鐘', 600, 'cmnd/pump/Backlog', 'PulseTime1 710; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水十分鐘</button>
@@ -780,7 +787,6 @@
       el.innerHTML = `${powerIconSvg} 關閉`;
       el.className = 'status-red';
       
-      /* 修改：主動關閉或檢測到加壓馬達關閉時，取消煮水倒數 */
       if (elementId === 'pump-power') {
         cancelBoilTimers();
       }
@@ -788,7 +794,6 @@
       el.innerHTML = `${powerIconSvg} 離線`;
       el.className = 'status-grey';
       
-      /* 修改：加壓馬達離線時，取消煮水倒數 */
       if (elementId === 'pump-power') {
         cancelBoilTimers();
       }
@@ -803,7 +808,6 @@
     client.publish(topic, payload, { qos: 0 });
   }
 
-  /* --- 點擊狀態卡片進行單鈕Toggle開關切換 --- */
   function togglePump() {
     const el = document.getElementById('pump-power');
     const isCurrentlyOn = el.innerText.includes('開啟');
@@ -826,7 +830,7 @@
     }
   }
 
-  /* --- 煮水倒數計時與狀態復原控制 --- */
+  /* --- 倒數計時與狀態復原控制 (支援加壓與煮水) --- */
   function startBoilTimer(btnId, defaultText, durationSeconds, topic, payload) {
     if (!client || !client.connected) {
       alert('請先連線至 HiveMQ！');
@@ -849,7 +853,7 @@
     const updateText = () => {
       const m = Math.floor(remainingSeconds / 60).toString().padStart(2, '0');
       const s = (remainingSeconds % 60).toString().padStart(2, '0');
-      btn.innerText = `煮水中 (${m}:${s})`;
+      btn.innerText = `加壓中 (${m}:${s})`;
     };
 
     updateText();
