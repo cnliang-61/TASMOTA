@@ -624,7 +624,6 @@
       }
       if (topic === 'tele/heater/LWT' && msgStr.toLowerCase() === 'offline') {
         updatePowerUI('heater-power', 'OFFLINE');
-        cancelBoilTimers();
       }
 
       if (topic.includes('/pump/')) {
@@ -781,14 +780,16 @@
       el.innerHTML = `${powerIconSvg} 關閉`;
       el.className = 'status-red';
       
-      if (elementId === 'heater-power') {
+      /* 修改：主動關閉或檢測到加壓馬達關閉時，取消煮水倒數 */
+      if (elementId === 'pump-power') {
         cancelBoilTimers();
       }
     } else {
       el.innerHTML = `${powerIconSvg} 離線`;
       el.className = 'status-grey';
       
-      if (elementId === 'heater-power') {
+      /* 修改：加壓馬達離線時，取消煮水倒數 */
+      if (elementId === 'pump-power') {
         cancelBoilTimers();
       }
     }
@@ -802,7 +803,7 @@
     client.publish(topic, payload, { qos: 0 });
   }
 
-  /* --- 新增：點擊狀態卡片進行單鈕Toggle開關切換 --- */
+  /* --- 點擊狀態卡片進行單鈕Toggle開關切換 --- */
   function togglePump() {
     const el = document.getElementById('pump-power');
     const isCurrentlyOn = el.innerText.includes('開啟');
