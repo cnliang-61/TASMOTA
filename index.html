@@ -20,7 +20,7 @@
       --custom-green: #00964B; /* 開啟 */
       --custom-red: #FF0000;   /* 關閉 */
       --custom-grey: #7B8483;  /* 離線 */
-      --custom-blue: #82ACFA;  /* 煮水中按鈕變色（提取自圖片） */
+      --custom-blue: #82ACFA;  /* 煮水中按鈕變色 */
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -85,28 +85,7 @@
       box-sizing: border-box;
       font-size: 1rem;
     }
-    button.btn-success {
-      background-color: var(--custom-green); 
-      color: #ffffff;                          
-      border: none;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    .btn-success:hover { 
-      opacity: 0.9; 
-    }
-
-    /* 紅色按鈕（關閉） */
-    .btn-danger { 
-      background-color: var(--custom-red); 
-      color: #ffffff;                          
-      border: none; 
-      font-weight: bold; 
-      cursor: pointer; 
-    }
-    .btn-danger:hover { 
-      opacity: 0.9; 
-    }
+    
     .btn-secondary { background-color: #45475a; color: #fff; border: none; font-weight: bold; cursor: pointer; }
     .btn-secondary:hover { background-color: #585b70; }
     
@@ -132,17 +111,6 @@
       cursor: not-allowed;
     }
 
-    /* 左右雙欄配置 (雙控制區並排) */
-    .dual-control-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-    .control-col {
-      display: flex;
-      flex-direction: column;
-    }
-    
     /* 狀態看板樣式 */
     .status-bar {
       padding: 12px;
@@ -169,13 +137,23 @@
       margin-bottom: 8px;
     }
 
-    /* 控制方框容器 */
+    /* 控制方框容器 - 改造為可點擊按鈕 */
     .device-box {
       background-color: #181825;
       padding: 24px 12px;
       border-radius: 12px;
       text-align: center;
       border: 1px solid #45475a;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+    .device-box:hover {
+      background-color: #242438;
+      border-color: #585b70;
+    }
+    .device-box:active {
+      transform: scale(0.98);
     }
     
     /* 單一圖示與狀態顯示列 */
@@ -202,9 +180,8 @@
     .status-grey { color: var(--custom-grey); fill: var(--custom-grey); }
 
     .section-title { font-size: 1.1rem; border-bottom: 1px solid #45475a; padding-bottom: 8px; margin-top: 0; margin-bottom: 15px; }
-    .sub-section-title { font-size: 0.95rem; border-bottom: 1px solid #45475a; padding-bottom: 6px; margin-top: 0; margin-bottom: 10px; color: #a6adc8; }
 
-    /* --- Tasmota 仿製風格定時器面板 --- */
+    /* --- Tasmota 定時器面板 --- */
     .tasmota-fieldset {
       border: 2px solid #585b70;
       border-radius: 8px;
@@ -268,7 +245,6 @@
       cursor: pointer;
     }
     
-    /* --- 定時器動作按鈕切換組 (紅色/綠色) --- */
     .action-toggle-group {
       display: flex;
       gap: 10px;
@@ -402,13 +378,13 @@
 
   <!-- 分頁 2: 設備狀況監控與即時控制 -->
   <div class="tab-content">
-    <h2 class="section-title">設備狀況監控</h2>
+    <h2 class="section-title">設備狀況監控與控制</h2>
     
     <div class="device-status-grid">
-      <!-- 加壓馬達區塊 -->
+      <!-- 加壓馬達區塊 (可直接點擊切換開關) -->
       <div>
         <div class="device-outside-title">加壓馬達</div>
-        <div class="device-box">
+        <div class="device-box" onclick="togglePump()">
           <div class="status-single-row">
             <span id="pump-power" class="status-grey">
               <svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
@@ -418,10 +394,10 @@
         </div>
       </div>
 
-      <!-- 熱水器區塊 -->
+      <!-- 熱水器區塊 (可直接點擊切換開關) -->
       <div>
         <div class="device-outside-title">熱水器</div>
-        <div class="device-box">
+        <div class="device-box" onclick="toggleHeater()">
           <div class="status-single-row">
             <span id="heater-power" class="status-grey">
               <svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
@@ -434,25 +410,6 @@
 
     <!-- 重新整理最新狀態按鈕 -->
     <button class="btn-secondary" onclick="refreshStatus()" style="margin-bottom: 20px;">🔄 重新整理最新狀態</button>
-
-    <!-- 左右雙欄：加壓馬達即時控制 (左) / 熱水器即時控制 (右) -->
-    <div class="dual-control-grid">
-      <div class="control-col">
-        <h3 class="sub-section-title">加壓馬達即時控制</h3>
-        <div class="btn-group">
-          <button class="btn-success" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON')">開啟</button>
-          <button class="btn-danger" onclick="publishCmd('cmnd/pump/POWER', 'OFF')">關閉</button>
-        </div>
-      </div>
-
-      <div class="control-col">
-        <h3 class="sub-section-title">熱水器即時控制</h3>
-        <div class="btn-group">
-          <button class="btn-success" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">開啟</button>
-          <button class="btn-danger" onclick="publishCmd('cmnd/pump/Backlog', 'POWER OFF; Delay 100; POWER ON')">關閉</button>
-        </div>
-      </div>
-    </div>
 
     <!-- 煮水情境控制按鈕區塊 -->
     <h2 class="section-title" style="margin-top: 25px;">煮水情境控制</h2>
@@ -484,10 +441,8 @@
 
       <div class="timer-grid" id="timer-num-selector"></div>
 
-      <!-- 讀取狀態提示字樣 -->
       <div id="loading-hint" class="loading-hint"></div>
 
-      <!-- 改為彩色按鈕式動作切換開關 -->
       <div class="form-group">
         <label>動作</label>
         <input type="hidden" id="timer-action" value="1">
@@ -508,7 +463,6 @@
         </label>
       </div>
 
-      <!-- 三個獨立下拉選單（上下午、時、分） -->
       <div class="form-group">
         <label>觸發時間</label>
         <div class="custom-time-picker">
@@ -522,7 +476,6 @@
         </div>
       </div>
 
-      <!-- 星期按鈕化選單 -->
       <div class="week-days-grid">
         <label class="day-btn"><input type="checkbox" class="day-check" value="0"><span>日</span></label>
         <label class="day-btn"><input type="checkbox" class="day-check" value="1"><span>一</span></label>
@@ -541,9 +494,8 @@
 <script>
   let client = null;
   let selectedTimerId = 1;
-  const timerIntervals = {}; // 儲存煮水按鈕倒數計時物件
+  const timerIntervals = {};
 
-  // 電源 SVG 圖示
   const powerIconSvg = `<svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>`;
 
   function initTimePickerOptions() {
@@ -589,7 +541,6 @@
     }
   }
   
-  // 切換「動作」按鈕樣式與隱藏欄位值
   function setTimerAction(val) {
     document.getElementById('timer-action').value = val;
     const btnOn = document.getElementById('btn-action-on');
@@ -673,7 +624,7 @@
       }
       if (topic === 'tele/heater/LWT' && msgStr.toLowerCase() === 'offline') {
         updatePowerUI('heater-power', 'OFFLINE');
-        cancelBoilTimers(); // 熱水器 LWT 離線時，主動取消倒數計時
+        cancelBoilTimers();
       }
 
       if (topic.includes('/pump/')) {
@@ -699,7 +650,7 @@
       brokerDiv.className = 'status-bar status-red';
       updatePowerUI('pump-power', 'OFFLINE');
       updatePowerUI('heater-power', 'OFFLINE');
-      cancelBoilTimers(); // Broker 斷線時取消倒數
+      cancelBoilTimers();
     });
   }
 
@@ -830,7 +781,6 @@
       el.innerHTML = `${powerIconSvg} 關閉`;
       el.className = 'status-red';
       
-      // 當偵測到熱水器電源為 OFF 時，自動停止倒數
       if (elementId === 'heater-power') {
         cancelBoilTimers();
       }
@@ -838,7 +788,6 @@
       el.innerHTML = `${powerIconSvg} 離線`;
       el.className = 'status-grey';
       
-      // 當偵測到熱水器離線時，自動停止倒數
       if (elementId === 'heater-power') {
         cancelBoilTimers();
       }
@@ -853,6 +802,29 @@
     client.publish(topic, payload, { qos: 0 });
   }
 
+  /* --- 新增：點擊狀態卡片進行單鈕Toggle開關切換 --- */
+  function togglePump() {
+    const el = document.getElementById('pump-power');
+    const isCurrentlyOn = el.innerText.includes('開啟');
+    
+    if (isCurrentlyOn) {
+      publishCmd('cmnd/pump/POWER', 'OFF');
+    } else {
+      publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON');
+    }
+  }
+
+  function toggleHeater() {
+    const el = document.getElementById('heater-power');
+    const isCurrentlyOn = el.innerText.includes('開啟');
+    
+    if (isCurrentlyOn) {
+      publishCmd('cmnd/pump/Backlog', 'POWER OFF; Delay 100; POWER ON');
+    } else {
+      publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON; Delay 110; Publish cmnd/heater/POWER ON');
+    }
+  }
+
   /* --- 煮水倒數計時與狀態復原控制 --- */
   function startBoilTimer(btnId, defaultText, durationSeconds, topic, payload) {
     if (!client || !client.connected) {
@@ -860,12 +832,10 @@
       return;
     }
 
-    // 發送 MQTT 指令
     publishCmd(topic, payload);
 
     const btn = document.getElementById(btnId);
 
-    // 若原先已有進行中的倒數則予以清理
     if (timerIntervals[btnId]) {
       clearInterval(timerIntervals[btnId].interval);
     }
@@ -893,14 +863,12 @@
       }
     }, 1000);
 
-    // 紀錄 timer ID 與預設文字以供後續重設
     timerIntervals[btnId] = {
       interval: intervalId,
       defaultText: defaultText
     };
   }
 
-  // 取消單一按鈕倒數
   function cancelBoilTimerSingle(btnId) {
     if (timerIntervals[btnId]) {
       clearInterval(timerIntervals[btnId].interval);
@@ -914,7 +882,6 @@
     }
   }
 
-  // 當熱水器關閉或離線時，取消所有煮水倒數
   function cancelBoilTimers() {
     Object.keys(timerIntervals).forEach(btnId => {
       cancelBoilTimerSingle(btnId);
