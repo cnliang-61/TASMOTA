@@ -89,6 +89,30 @@
     .btn-secondary { background-color: #45475a; color: #fff; border: none; font-weight: bold; cursor: pointer; }
     .btn-secondary:hover { background-color: #585b70; }
 
+    /* 中間按鈕與倒數視窗橫向對齊列 */
+    .mid-action-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+
+    /* 剩餘時間顯示視窗 */
+    .remaining-window {
+      flex: 1;
+      background-color: #181825;
+      border: 1px solid #45475a;
+      border-radius: 6px;
+      padding: 10px;
+      text-align: center;
+      font-weight: bold;
+      color: var(--accent-color);
+      font-size: 0.95rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
     /* 左右雙欄版面佈局 */
     .control-grid-container {
       display: grid;
@@ -108,7 +132,7 @@
       font-weight: bold;
     }
 
-    /* 情境/加壓按鈕倒數樣式 */
+    /* 情境/加壓按鈕樣式 */
     .btn-boil {
       background-color: #181825;
       border: 1px solid #45475a;
@@ -120,11 +144,8 @@
     .btn-boil:hover {
       background-color: #313244;
     }
-    .btn-boil.active-boiling {
-      background-color: var(--custom-blue) !important;
-      color: #11111b !important;
-      border-color: var(--custom-blue) !important;
-      cursor: not-allowed;
+    .btn-boil:active {
+      background-color: #45475a;
     }
 
     /* 狀態看板樣式 */
@@ -424,23 +445,26 @@
       </div>
     </div>
 
-    <!-- 重新整理最新狀態按鈕 -->
-    <button class="btn-secondary" onclick="refreshStatus()" style="margin-bottom: 20px;">🔄 重新整理最新狀態</button>
+    <!-- 中間橫列：加壓馬達剩餘時間顯示 (分:秒) + 重新整理按鈕 -->
+    <div class="mid-action-row">
+      <div id="remaining-display" class="remaining-window">⏳ 加壓馬達剩餘時間：00:00</div>
+      <button class="btn-secondary" onclick="refreshStatus()" style="flex: 1;">🔄 重新整理最新狀態</button>
+    </div>
 
     <!-- 左右雙欄控制按鈕區塊 -->
     <div class="control-grid-container">
-      <!-- 左欄：加壓控制 (上下排列) -->
+      <!-- 左欄：加壓控制 -->
       <div class="control-column">
         <h2 class="section-title">加壓控制</h2>
-        <button id="btn-pump-10" class="btn-boil" onclick="startBoilTimer('btn-pump-10', '加壓十分鐘', 600, 'cmnd/pump/Backlog', 'PulseTime1 700; POWER ON')">加壓十分鐘</button>
-        <button id="btn-pump-20" class="btn-boil" onclick="startBoilTimer('btn-pump-20', '加壓二十分鐘', 1200, 'cmnd/pump/Backlog', 'PulseTime1 1300; POWER ON')">加壓二十分鐘</button>
+        <button class="btn-boil" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 700; POWER ON')">加壓十分鐘</button>
+        <button class="btn-boil" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 1300; POWER ON')">加壓二十分鐘</button>
       </div>
 
-      <!-- 右欄：煮水情境控制 (上下排列) -->
+      <!-- 右欄：煮水情境控制 -->
       <div class="control-column">
         <h2 class="section-title">煮水情境控制</h2>
-        <button id="btn-boil-5" class="btn-boil" onclick="startBoilTimer('btn-boil-5', '煮水五分鐘', 300, 'cmnd/pump/Backlog', 'PulseTime1 410; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水五分鐘</button>
-        <button id="btn-boil-10" class="btn-boil" onclick="startBoilTimer('btn-boil-10', '煮水十分鐘', 600, 'cmnd/pump/Backlog', 'PulseTime1 710; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水十分鐘</button>
+        <button class="btn-boil" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 410; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水五分鐘</button>
+        <button class="btn-boil" onclick="publishCmd('cmnd/pump/Backlog', 'PulseTime1 710; POWER ON; Delay 110; Publish cmnd/heater/POWER ON')">煮水十分鐘</button>
       </div>
     </div>
   </div>
@@ -520,9 +544,18 @@
 <script>
   let client = null;
   let selectedTimerId = 1;
-  const timerIntervals = {};
+  let remainingTimer = null;
+  let currentRemaining = 0;
 
   const powerIconSvg = `<svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>`;
+
+  /* 將總秒數轉換為 分:秒 (MM:SS) 格式 */
+  function formatTime(totalSeconds) {
+    if (isNaN(totalSeconds) || totalSeconds <= 0) return "00:00";
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
 
   function initTimePickerOptions() {
     const hourSelect = document.getElementById('timer-hour');
@@ -654,6 +687,7 @@
 
       if (topic.includes('/pump/')) {
         parsePowerState('pump-power', topic, msgStr);
+        parsePulseTimeRemaining(topic, msgStr);
       }
       if (topic.includes('/heater/')) {
         parsePowerState('heater-power', topic, msgStr);
@@ -675,8 +709,64 @@
       brokerDiv.className = 'status-bar status-red';
       updatePowerUI('pump-power', 'OFFLINE');
       updatePowerUI('heater-power', 'OFFLINE');
-      cancelBoilTimers();
+      startRemainingCountdown(0);
     });
+  }
+
+  /* 解析 PulseTime 的 Remaining 剩餘秒數並轉換 */
+  function parsePulseTimeRemaining(topic, msgStr) {
+    try {
+      const json = JSON.parse(msgStr);
+      let remSec = null;
+
+      if (json.PulseTime1 !== undefined) {
+        let val = json.PulseTime1;
+        
+        // 若為 JSON 物件 { Remaining: xxx }
+        if (typeof val === 'object' && val.Remaining !== undefined) {
+          val = val.Remaining;
+        }
+
+        // Tasmota PulseTime 數值換算為秒數
+        if (typeof val === 'number') {
+          if (val > 100) {
+            remSec = val - 100; // 超過 100 代表 (秒數 + 100)
+          } else {
+            remSec = Math.floor(val / 10); // 100 以下代表 0.1 秒單位
+          }
+        }
+      }
+
+      if (remSec !== null) {
+        startRemainingCountdown(remSec);
+      }
+    } catch (e) {
+    }
+  }
+
+  /* 更新剩餘時間顯示框 (分:秒) 並啟動前端倒數 */
+  function startRemainingCountdown(seconds) {
+    if (remainingTimer) clearInterval(remainingTimer);
+
+    currentRemaining = parseInt(seconds, 10);
+    const displayEl = document.getElementById('remaining-display');
+
+    if (isNaN(currentRemaining) || currentRemaining <= 0) {
+      displayEl.innerText = '⏳ 加壓馬達剩餘時間：00:00';
+      return;
+    }
+
+    displayEl.innerText = `⏳ 加壓馬達剩餘時間：${formatTime(currentRemaining)}`;
+
+    remainingTimer = setInterval(() => {
+      currentRemaining--;
+      if (currentRemaining <= 0) {
+        clearInterval(remainingTimer);
+        displayEl.innerText = '⏳ 加壓馬達剩餘時間：00:00';
+      } else {
+        displayEl.innerText = `⏳ 加壓馬達剩餘時間：${formatTime(currentRemaining)}`;
+      }
+    }, 1000);
   }
 
   function onDeviceOrTimerChange() {
@@ -778,6 +868,7 @@
     }
     client.publish('cmnd/pump/POWER', '');
     client.publish('cmnd/heater/POWER', '');
+    client.publish('cmnd/pump/PulseTime1', '');
     client.publish('cmnd/pump/State', '');
     client.publish('cmnd/heater/State', '');
   }
@@ -807,14 +898,14 @@
       el.className = 'status-red';
       
       if (elementId === 'pump-power') {
-        cancelBoilTimers();
+        startRemainingCountdown(0);
       }
     } else {
       el.innerHTML = `${powerIconSvg} 離線`;
       el.className = 'status-grey';
       
       if (elementId === 'pump-power') {
-        cancelBoilTimers();
+        startRemainingCountdown(0);
       }
     }
   }
@@ -847,69 +938,6 @@
     } else {
       publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON; Delay 110; Publish cmnd/heater/POWER ON');
     }
-  }
-
-  /* --- 倒數計時與狀態復原控制 (支援加壓與煮水) --- */
-  function startBoilTimer(btnId, defaultText, durationSeconds, topic, payload) {
-    if (!client || !client.connected) {
-      alert('請先連線至 HiveMQ！');
-      return;
-    }
-
-    publishCmd(topic, payload);
-
-    const btn = document.getElementById(btnId);
-
-    if (timerIntervals[btnId]) {
-      clearInterval(timerIntervals[btnId].interval);
-    }
-
-    btn.classList.add('active-boiling');
-    btn.disabled = true;
-
-    let remainingSeconds = durationSeconds;
-
-    const updateText = () => {
-      const m = Math.floor(remainingSeconds / 60).toString().padStart(2, '0');
-      const s = (remainingSeconds % 60).toString().padStart(2, '0');
-      btn.innerText = `加壓中 (${m}:${s})`;
-    };
-
-    updateText();
-
-    const intervalId = setInterval(() => {
-      remainingSeconds--;
-
-      if (remainingSeconds <= 0) {
-        cancelBoilTimerSingle(btnId);
-      } else {
-        updateText();
-      }
-    }, 1000);
-
-    timerIntervals[btnId] = {
-      interval: intervalId,
-      defaultText: defaultText
-    };
-  }
-
-  function cancelBoilTimerSingle(btnId) {
-    if (timerIntervals[btnId]) {
-      clearInterval(timerIntervals[btnId].interval);
-      const btn = document.getElementById(btnId);
-      if (btn) {
-        btn.classList.remove('active-boiling');
-        btn.disabled = false;
-        btn.innerText = timerIntervals[btnId].defaultText;
-      }
-      delete timerIntervals[btnId];
-    }
-  }
-
-  function cancelBoilTimers() {
-    Object.keys(timerIntervals).forEach(btnId => {
-      cancelBoilTimerSingle(btnId);
-    });
   }
 
   function saveTasmotaTimer() {
