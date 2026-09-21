@@ -6,8 +6,6 @@
   <title>Tasmota 遠端控制面板</title>
   <!-- 引入 MQTT.js 函式庫 -->
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <!-- 引入電子鐘數碼管風格字型 Orbitron -->
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg-color: #1e1e2e;
@@ -172,38 +170,6 @@
     }
     .device-box:active {
       transform: scale(0.98);
-    }
-
-    /* 加壓馬達專用倒數小視窗樣式 (紅色電子鐘/LED質感) */
-    .countdown-box {
-      margin-top: 10px;
-      padding: 10px 12px;
-      background-color: #0d0d11;
-      border: 2px solid #333344;
-      border-radius: 10px;
-      text-align: center;
-      box-shadow: inset 0 0 10px rgba(0,0,0,0.8), 0 4px 8px rgba(0,0,0,0.4);
-      display: none; /* 預設隱藏 */
-    }
-    .countdown-title {
-      font-size: 0.85rem;
-      font-weight: bold;
-      color: #8888aa;
-      margin-bottom: 4px;
-      letter-spacing: 1px;
-    }
-    .digital-clock {
-      font-family: 'Orbitron', 'Courier New', monospace;
-      font-size: 1.8rem;
-      font-weight: 700;
-      color: #ff3333;
-      background-color: #050505;
-      padding: 6px 12px;
-      border-radius: 6px;
-      border: 1px solid #2a0808;
-      display: inline-block;
-      letter-spacing: 3px;
-      text-shadow: 0 0 6px rgba(255, 51, 51, 0.7), 0 0 12px rgba(255, 0, 0, 0.4);
     }
     
     /* 單一圖示與狀態顯示列 */
@@ -441,11 +407,6 @@
               離線
             </span>
           </div>
-        </div>
-        <!-- 加壓倒數計時小視窗 (紅色電子鐘風格) -->
-        <div id="pump-countdown-box" class="countdown-box">
-          <div class="countdown-title">加壓倒數中</div>
-          <div id="pump-countdown-timer" class="digital-clock">00:00</div>
         </div>
       </div>
 
@@ -895,27 +856,23 @@
       return;
     }
 
-    // 先清除其他既存的倒數
-    cancelBoilTimers();
-
     publishCmd(topic, payload);
 
     const btn = document.getElementById(btnId);
-    const countdownBox = document.getElementById('pump-countdown-box');
-    const countdownTimer = document.getElementById('pump-countdown-timer');
+
+    if (timerIntervals[btnId]) {
+      clearInterval(timerIntervals[btnId].interval);
+    }
 
     btn.classList.add('active-boiling');
     btn.disabled = true;
-
-    // 顯示倒數小視窗（固定顯示標題：加壓倒數中）
-    countdownBox.style.display = 'block';
 
     let remainingSeconds = durationSeconds;
 
     const updateText = () => {
       const m = Math.floor(remainingSeconds / 60).toString().padStart(2, '0');
       const s = (remainingSeconds % 60).toString().padStart(2, '0');
-      countdownTimer.innerText = `${m}:${s}`;
+      btn.innerText = `加壓中 (${m}:${s})`;
     };
 
     updateText();
@@ -947,20 +904,12 @@
       }
       delete timerIntervals[btnId];
     }
-    
-    // 如果沒有任何倒數進行中，隱藏倒數視窗
-    if (Object.keys(timerIntervals).length === 0) {
-      const countdownBox = document.getElementById('pump-countdown-box');
-      if (countdownBox) countdownBox.style.display = 'none';
-    }
   }
 
   function cancelBoilTimers() {
     Object.keys(timerIntervals).forEach(btnId => {
       cancelBoilTimerSingle(btnId);
     });
-    const countdownBox = document.getElementById('pump-countdown-box');
-    if (countdownBox) countdownBox.style.display = 'none';
   }
 
   function saveTasmotaTimer() {
