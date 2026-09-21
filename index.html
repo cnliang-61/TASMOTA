@@ -86,28 +86,37 @@
       font-size: 1rem;
     }
     
-    .btn-secondary { background-color: #45475a; color: #fff; border: none; font-weight: bold; cursor: pointer; }
+    .btn-secondary { 
+      background-color: #45475a; 
+      color: #fff; 
+      border: none; 
+      font-weight: bold; 
+      cursor: pointer; 
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 15px;
+      transition: background-color 0.2s;
+    }
     .btn-secondary:hover { background-color: #585b70; }
 
-    /* 中間按鈕與倒數視窗橫向對齊列 */
-    .mid-action-row {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 20px;
-      align-items: center;
+    /* 雙欄剩餘時間視窗容器 */
+    .remaining-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 15px;
     }
 
     /* 剩餘時間顯示視窗 */
     .remaining-window {
-      flex: 1;
       background-color: #181825;
       border: 1px solid #45475a;
       border-radius: 6px;
-      padding: 10px;
+      padding: 10px 4px;
       text-align: center;
       font-weight: bold;
       color: var(--accent-color);
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -162,7 +171,6 @@
       grid-template-columns: 1fr 1fr;
       gap: 16px;
       margin-top: 15px;
-      margin-bottom: 20px;
     }
     
     /* 框外標題 */
@@ -177,7 +185,7 @@
     /* 控制方框容器 */
     .device-box {
       background-color: #181825;
-      padding: 24px 12px;
+      padding: 16px 8px;
       border-radius: 12px;
       text-align: center;
       border: 1px solid #45475a;
@@ -193,20 +201,20 @@
       transform: scale(0.98);
     }
     
-    /* 單一圖示與狀態顯示列 */
+    /* 單一圖示與狀態顯示列 (文字大小縮小一半) */
     .status-single-row { 
-      font-size: 3.15rem;
+      font-size: 1.575rem;
       font-weight: bold;
       display: flex; 
       align-items: center; 
       justify-content: center; 
-      gap: 16px; 
+      gap: 8px; 
     }
     
-    /* 電源圖示 */
+    /* 電源圖示 (大小縮小一半) */
     .power-icon {
-      width: 66px;
-      height: 66px;
+      width: 33px;
+      height: 33px;
       vertical-align: middle;
       transition: fill 0.3s ease;
     }
@@ -445,11 +453,14 @@
       </div>
     </div>
 
-    <!-- 中間橫列：加壓馬達剩餘時間顯示 (分:秒) + 重新整理按鈕 -->
-    <div class="mid-action-row">
-      <div id="remaining-display" class="remaining-window">⏳ 加壓馬達剩餘時間：00:00</div>
-      <button class="btn-secondary" onclick="refreshStatus()" style="flex: 1;">🔄 重新整理最新狀態</button>
+    <!-- 雙欄剩餘時間視窗 (加壓馬達剩餘時間 + 煮水剩餘時間) -->
+    <div class="remaining-grid">
+      <div id="pump-remaining-display" class="remaining-window">⏳ 加壓馬達剩餘時間：00:00</div>
+      <div id="heater-remaining-display" class="remaining-window">⏳ 煮水剩餘時間：00:00</div>
     </div>
+
+    <!-- 重新整理最新狀態按鈕 -->
+    <button class="btn-secondary" onclick="refreshStatus()">🔄 重新整理最新狀態</button>
 
     <!-- 左右雙欄控制按鈕區塊 -->
     <div class="control-grid-container">
@@ -544,8 +555,13 @@
 <script>
   let client = null;
   let selectedTimerId = 1;
-  let remainingTimer = null;
-  let currentRemaining = 0;
+  
+  /* 加壓馬達與熱水器各自的倒數計時器 */
+  let pumpTimer = null;
+  let pumpCurrentRemaining = 0;
+
+  let heaterTimer = null;
+  let heaterCurrentRemaining = 0;
 
   const powerIconSvg = `<svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>`;
 
@@ -687,10 +703,11 @@
 
       if (topic.includes('/pump/')) {
         parsePowerState('pump-power', topic, msgStr);
-        parsePulseTimeRemaining(topic, msgStr);
+        parsePulseTimeRemaining('pump', topic, msgStr);
       }
       if (topic.includes('/heater/')) {
         parsePowerState('heater-power', topic, msgStr);
+        parsePulseTimeRemaining('heater', topic, msgStr);
       }
 
       parseTimerState(topic, msgStr);
@@ -709,64 +726,97 @@
       brokerDiv.className = 'status-bar status-red';
       updatePowerUI('pump-power', 'OFFLINE');
       updatePowerUI('heater-power', 'OFFLINE');
-      startRemainingCountdown(0);
+      startRemainingCountdown('pump', 0);
+      startRemainingCountdown('heater', 0);
     });
   }
 
-  /* 解析 PulseTime 的 Remaining 剩餘秒數並轉換 */
-  function parsePulseTimeRemaining(topic, msgStr) {
+  /* 解析 PulseTime 的 Remaining 剩餘秒數 (支援 stat/heater/RESULT 等) */
+  function parsePulseTimeRemaining(device, topic, msgStr) {
     try {
       const json = JSON.parse(msgStr);
       let remSec = null;
 
       if (json.PulseTime1 !== undefined) {
         let val = json.PulseTime1;
-        
-        // 若為 JSON 物件 { Remaining: xxx }
         if (typeof val === 'object' && val.Remaining !== undefined) {
           val = val.Remaining;
         }
 
-        // Tasmota PulseTime 數值換算為秒數
         if (typeof val === 'number') {
           if (val > 100) {
-            remSec = val - 100; // 超過 100 代表 (秒數 + 100)
+            remSec = val - 100;
           } else {
-            remSec = Math.floor(val / 10); // 100 以下代表 0.1 秒單位
+            remSec = Math.floor(val / 10);
           }
         }
       }
 
       if (remSec !== null) {
-        startRemainingCountdown(remSec);
+        startRemainingCountdown(device, remSec);
       }
     } catch (e) {
     }
   }
 
   /* 更新剩餘時間顯示框 (分:秒) 並啟動前端倒數 */
-  function startRemainingCountdown(seconds) {
-    if (remainingTimer) clearInterval(remainingTimer);
+  function startRemainingCountdown(device, seconds) {
+    const displayEl = document.getElementById(`${device}-remaining-display`);
+    const prefix = device === 'pump' ? '⏳ 加壓馬達剩餘時間：' : '⏳ 煮水剩餘時間：';
 
-    currentRemaining = parseInt(seconds, 10);
-    const displayEl = document.getElementById('remaining-display');
+    if (device === 'pump') {
+      if (pumpTimer) clearInterval(pumpTimer);
+      pumpCurrentRemaining = parseInt(seconds, 10);
 
-    if (isNaN(currentRemaining) || currentRemaining <= 0) {
-      displayEl.innerText = '⏳ 加壓馬達剩餘時間：00:00';
-      return;
-    }
-
-    displayEl.innerText = `⏳ 加壓馬達剩餘時間：${formatTime(currentRemaining)}`;
-
-    remainingTimer = setInterval(() => {
-      currentRemaining--;
-      if (currentRemaining <= 0) {
-        clearInterval(remainingTimer);
-        displayEl.innerText = '⏳ 加壓馬達剩餘時間：00:00';
-      } else {
-        displayEl.innerText = `⏳ 加壓馬達剩餘時間：${formatTime(currentRemaining)}`;
+      if (isNaN(pumpCurrentRemaining) || pumpCurrentRemaining <= 0) {
+        pumpCurrentRemaining = 0;
+        displayEl.innerText = `${prefix}00:00`;
+        return;
       }
-    }, 1000);
+
+      displayEl.innerText = `${prefix}${formatTime(pumpCurrentRemaining)}`;
+
+      pumpTimer = setInterval(() => {
+        pumpCurrentRemaining--;
+        if (pumpCurrentRemaining <= 0) {
+          pumpCurrentRemaining = 0;
+          clearInterval(pumpTimer);
+          displayEl.innerText = `${prefix}00:00`;
+        } else {
+          displayEl.innerText = `${prefix}${formatTime(pumpCurrentRemaining)}`;
+        }
+
+        // 當加壓馬達倒數更新時，若熱水器處於開啟狀態，同步更新煮水剩餘時間
+        const heaterPowerEl = document.getElementById('heater-power');
+        if (heaterPowerEl && heaterPowerEl.innerText.includes('開啟')) {
+          const heaterDisplayEl = document.getElementById('heater-remaining-display');
+          heaterDisplayEl.innerText = `⏳ 煮水剩餘時間：${formatTime(pumpCurrentRemaining)}`;
+        }
+      }, 1000);
+
+    } else if (device === 'heater') {
+      if (heaterTimer) clearInterval(heaterTimer);
+      heaterCurrentRemaining = parseInt(seconds, 10);
+
+      if (isNaN(heaterCurrentRemaining) || heaterCurrentRemaining <= 0) {
+        heaterCurrentRemaining = 0;
+        displayEl.innerText = `${prefix}00:00`;
+        return;
+      }
+
+      displayEl.innerText = `${prefix}${formatTime(heaterCurrentRemaining)}`;
+
+      heaterTimer = setInterval(() => {
+        heaterCurrentRemaining--;
+        if (heaterCurrentRemaining <= 0) {
+          heaterCurrentRemaining = 0;
+          clearInterval(heaterTimer);
+          displayEl.innerText = `${prefix}00:00`;
+        } else {
+          displayEl.innerText = `${prefix}${formatTime(heaterCurrentRemaining)}`;
+        }
+      }, 1000);
+    }
   }
 
   function onDeviceOrTimerChange() {
@@ -869,19 +919,39 @@
     client.publish('cmnd/pump/POWER', '');
     client.publish('cmnd/heater/POWER', '');
     client.publish('cmnd/pump/PulseTime1', '');
+    client.publish('cmnd/heater/PulseTime1', '');
     client.publish('cmnd/pump/State', '');
     client.publish('cmnd/heater/State', '');
   }
 
   function parsePowerState(elementId, topic, msgStr) {
+    let powerState = '';
+
     if (topic.endsWith('/POWER') || topic.endsWith('/POWER1')) {
-      updatePowerUI(elementId, msgStr);
+      powerState = msgStr;
     } else {
       try {
         const json = JSON.parse(msgStr);
-        if (json.POWER !== undefined) updatePowerUI(elementId, json.POWER);
-        else if (json.POWER1 !== undefined) updatePowerUI(elementId, json.POWER1);
+        if (json.POWER !== undefined) powerState = json.POWER;
+        else if (json.POWER1 !== undefined) powerState = json.POWER1;
       } catch (e) {
+      }
+    }
+
+    if (powerState) {
+      updatePowerUI(elementId, powerState);
+
+      // 判斷熱水器狀態以決定「煮水剩餘時間」
+      if (elementId === 'heater-power') {
+        const upperState = powerState.toUpperCase();
+
+        if (upperState === 'ON') {
+          // 當熱水器開啟時，同步加壓馬達目前的剩餘時間
+          startRemainingCountdown('heater', pumpCurrentRemaining);
+        } else {
+          // 當熱水器關閉或離線時，煮水剩餘時間歸零並顯示 00:00
+          startRemainingCountdown('heater', 0);
+        }
       }
     }
   }
@@ -897,16 +967,14 @@
       el.innerHTML = `${powerIconSvg} 關閉`;
       el.className = 'status-red';
       
-      if (elementId === 'pump-power') {
-        startRemainingCountdown(0);
-      }
+      if (elementId === 'pump-power') startRemainingCountdown('pump', 0);
+      if (elementId === 'heater-power') startRemainingCountdown('heater', 0);
     } else {
       el.innerHTML = `${powerIconSvg} 離線`;
       el.className = 'status-grey';
       
-      if (elementId === 'pump-power') {
-        startRemainingCountdown(0);
-      }
+      if (elementId === 'pump-power') startRemainingCountdown('pump', 0);
+      if (elementId === 'heater-power') startRemainingCountdown('heater', 0);
     }
   }
 
