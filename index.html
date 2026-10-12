@@ -426,9 +426,9 @@
     <button class="tab-btn" onclick="switchTab(3)">運行統計</button>
   </div>
 
-  <!-- 分頁 1: HiveMQ Cloud 連線設定 -->
+  <!-- 分頁 1: MQTT broker 連線設定 -->
   <div class="tab-content active">
-    <h2 class="section-title">HiveMQ Cloud 連線設定</h2>
+    <h2 class="section-title">MQTT broker 連線設定</h2>
     <div class="form-group">
       <label>Cluster Host（不要加 wss://）：</label>
       <input type="text" id="host" value="e1b0f900.ala.asia-southeast1.emqxsl.com">
@@ -605,7 +605,7 @@
     </div>
 
     <div class="stat-hint">
-      🌐 統計資料同時保存在 <b>HiveMQ Broker（Retain 快照）</b>與本機瀏覽器，<br>
+      🌐 統計資料同時保存在 <b>MQTT Broker（Retain 快照）</b>與本機瀏覽器，<br>
       任何裝置開啟網頁即自動合併，多台裝置數據一致，重整/重開瀏覽器不丟失。<br>
       🔧 建議在兩台 Tasmota 的「主控台」各執行一次（瀏覽器全關時也能記下最後一次開關時間）：<br>
       <b>加壓馬達：</b><br>
@@ -1062,7 +1062,7 @@
     const password = document.getElementById('password').value.trim();
 
     if (!host || !username || !password) {
-      alert('請填寫完整的 HiveMQ 連線資訊！');
+      alert('請填寫完整的Broker 連線資訊！');
       return;
     }
 
@@ -1373,7 +1373,7 @@
 
   function refreshStatus() {
     if (!client || !client.connected) {
-      alert('請先連線至 HiveMQ！');
+      alert('請先連線至 Broker！');
       return;
     }
     client.publish('cmnd/pump/POWER', '');
@@ -1489,7 +1489,7 @@
 
   function publishCmd(topic, payload) {
     if (!client || !client.connected) {
-      alert('請先連線至 HiveMQ！');
+      alert('請先連線至 Broker！');
       return;
     }
     client.publish(topic, payload, { qos: 0 });
@@ -1556,7 +1556,7 @@
     };
 
     if (!client || !client.connected) {
-      alert('請先連線至 HiveMQ！');
+      alert('請先連線至 Broker！');
       return;
     }
 
