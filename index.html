@@ -612,7 +612,16 @@
       </div>
     </div>
 
-    <div class="stat-hint">
+    <h2 class="section-title" style="margin-top:20px">過去 25 小時・每小時開啟時間</h2>
+    <table class="hourly-table">
+      <thead><tr><th>時段</th><th>加壓馬達</th><th>熱水器</th></tr></thead>
+      <tbody id="hourly-body"></tbody>
+    </table>
+    <div class="stat-hint">以整點切分，最上列為目前進行中的小時；每格長條滿格 = 60 分鐘。</div>
+    <button class="btn-secondary" onclick="clearOnTimeStats()">🗑️ 清除統計資料（含雲端快照）</button>
+  </div>
+  
+      <div class="stat-hint">
       🌐 統計資料同時保存在 <b>HiveMQ Broker（Retain 快照）</b>與本機瀏覽器，<br>
       任何裝置開啟網頁即自動合併，多台裝置數據一致，重整/重開瀏覽器不丟失。<br>
       🔧 建議在兩台 Tasmota 的「主控台」各執行一次（瀏覽器全關時也能記下最後一次開關時間）：<br>
@@ -624,14 +633,7 @@
       再輸入 <code>Rule2 1</code>（若 Rule1/Rule2 已被佔用，改用 Rule2/Rule3）<br>
       ※ 同一台裝置請勿同時開兩個分頁（固定 ClientID 會互踢），不同裝置沒有此問題。
     </div>
-    <h2 class="section-title" style="margin-top:20px">過去 25 小時・每小時開啟時間</h2>
-    <table class="hourly-table">
-      <thead><tr><th>時段</th><th>加壓馬達</th><th>熱水器</th></tr></thead>
-      <tbody id="hourly-body"></tbody>
-    </table>
-    <div class="stat-hint">以整點切分，最上列為目前進行中的小時；每格長條滿格 = 60 分鐘。</div>
-    <button class="btn-secondary" onclick="clearOnTimeStats()">🗑️ 清除統計資料（含雲端快照）</button>
-  </div>
+  
 </div>
 
 <script>
