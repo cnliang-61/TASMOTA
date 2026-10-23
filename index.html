@@ -624,13 +624,15 @@
       <div class="stat-hint">
       🌐 統計資料同時保存在 <b>HiveMQ Broker（Retain 快照）</b>與本機瀏覽器，<br>
       任何裝置開啟網頁即自動合併，多台裝置數據一致，重整/重開瀏覽器不丟失。<br>
-      🔧 建議在兩台 Tasmota 的「主控台」各執行一次（瀏覽器全關時也能記下最後一次開關時間）：<br>
+      🔧 <b>必做（一次性設定）</b>：若要讓「Tasmota 網頁、定時器、其他 MQTT App」造成的開關也被完整記錄（即使本網頁關閉），請在兩台 Tasmota 的「主控台」各執行：<br>
       <b>加壓馬達：</b><br>
-      <code>Rule1 ON Power1#state=1 DO Publish2 tele/pump/laston %timestamp% ENDON ON Power1#state=0 DO Publish2 tele/pump/lastoff %timestamp% ENDON</code><br>
-      再輸入 <code>Rule1 1</code><br>
+      <code>Rule3 ON Power1#state=1 DO Publish2 tele/pump/ev/%timestamp% 1 ENDON ON Power1#state=0 DO Publish2 tele/pump/ev/%timestamp% 0 ENDON</code><br>
+      再輸入 <code>Rule3 1</code><br>
       <b>熱水器：</b><br>
-      <code>Rule2 ON Power1#state=1 DO Publish2 tele/heater/laston %timestamp% ENDON ON Power1#state=0 DO Publish2 tele/heater/lastoff %timestamp% ENDON</code><br>
-      再輸入 <code>Rule2 1</code>（若 Rule1/Rule2 已被佔用，改用 Rule2/Rule3）<br>
+      <code>Rule3 ON Power1#state=1 DO Publish2 tele/heater/ev/%timestamp% 1 ENDON ON Power1#state=0 DO Publish2 tele/heater/ev/%timestamp% 0 ENDON</code><br>
+      再輸入 <code>Rule3 1</code>（若 Rule3 已被佔用請改用其他編號）<br>
+      每次開/關，裝置會用自己的時鐘在 broker 留下一筆紀錄，任何裝置開啟網頁即自動補回；超過 72 小時的舊紀錄會自動清理。<br>
+      （先前的 laston/lastoff 規則可繼續保留，作為輔助。）<br>
       ※ 同一台裝置請勿同時開兩個分頁（固定 ClientID 會互踢），不同裝置沒有此問題。
     </div>
   
@@ -871,6 +873,33 @@
     const changed = JSON.stringify(onTimeLog[device]) !== before;
     if (changed) saveOnTimeLog();
     return changed;
+  }
+
+  /* 裝置端事件：Tasmota Rule 以 Publish2 在 tele/<dev>/ev/<時間戳> 保留 1(開)/0(關)。
+   * 時間戳由裝置自己產生，是最權威的開關時刻，不受網頁是否開啟影響。 */
+  const evSeen = { pump: {}, heater: {} };
+  function handleDeviceEvent(dev, topic, tsStr, payload) {
+    if (!payload) { delete evSeen[dev][topic]; return; }   // 被清理掉的空訊息
+    const t = Date.parse(tsStr);
+    if (isNaN(t) || t < Date.UTC(2020, 0, 1)) return;        // 裝置尚未對時的無效時間
+    evSeen[dev][topic] = t;
+    const v = payload.trim().toUpperCase();
+    mergeSamples(dev, [{ t, on: (v === '1' || v === 'ON') }]);
+    updateOnTimeStats();
+  }
+
+  /* 清理 72 小時前的舊事件（每台裝置保留最新一筆作為基準狀態），避免 broker 無限累積 */
+  function pruneOldEvents() {
+    if (!client || !client.connected) return;
+    const now = Date.now(), keepMs = 72 * 3600000;
+    ['pump', 'heater'].forEach(dev => {
+      const topics = Object.keys(evSeen[dev]).sort((a, b) => evSeen[dev][a] - evSeen[dev][b]);
+      topics.slice(0, -1).forEach(tp => {
+        if (now - evSeen[dev][tp] > keepMs) {
+          try { client.publish(tp, '', { qos: 1, retain: true }); } catch (e) {}
+        }
+      });
+    });
   }
 
   /* 裝置端錨點：Tasmota 以 Publish2 保留的 laston/lastoff 時間字串 */
@@ -1172,6 +1201,11 @@
       client.subscribe('tele/pump/lastoff');
       client.subscribe('tele/heater/laston');
       client.subscribe('tele/heater/lastoff');
+      /* 裝置端事件記錄：每次開/關都在 broker 留下一筆 retained（tele/<dev>/ev/<時間戳>），
+         即使所有網頁都關著、或由 Tasmota 網頁/定時器/其他 App 操作，開啟網頁後也能完整補回 */
+      client.subscribe('tele/pump/ev/+');
+      client.subscribe('tele/heater/ev/+');
+      setTimeout(pruneOldEvents, 6000);
       /* 清除標記：任何一台裝置清除後，其他裝置據此丟棄舊樣本 */
       client.subscribe('tele/pump/clearstat');
       client.subscribe('tele/heater/clearstat');
@@ -1191,6 +1225,9 @@
 
     client.on('message', (topic, message) => {
       const msgStr = message.toString();
+
+      const evMatch = topic.match(/^tele\/(pump|heater)\/ev\/(.+)$/);
+      if (evMatch) { handleDeviceEvent(evMatch[1], topic, evMatch[2], msgStr); return; }
 
       /* Retained 快照：以聯集方式合併，不覆蓋本機樣本 */
       if (topic === 'tele/pump/stat24' || topic === 'tele/heater/stat24') {
