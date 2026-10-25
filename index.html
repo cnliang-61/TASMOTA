@@ -731,13 +731,14 @@
    * 聯集後就會出現重複/交錯的樣本，兩台算出來的累計時間因此不同。
    * 這裡把「連續同狀態」的樣本收斂成一筆（取最早、優先採用非估算值），
    * 結果與資料來源、合併順序完全無關：任何裝置拿到同一份聯集，必得到同一份結果。 */
+  /* q = 時間可信度：3 裝置自己記錄(事件/錨點) > 2 網頁即時觀測 > 1.5 依 Timer 排程推算
+   *     > 1 重新連線後才看到的「遲到觀測」 > 0 中點猜測。同一區間取最高者（同級取最早）。 */
   function normalizeSamples(samples) {
     const arr = samples
       .filter(s => s && typeof s.t === 'number' && typeof s.on === 'boolean')
       .map(s => {
-        const o = { t: s.t, on: s.on };
+        const o = { t: s.t, on: s.on, q: typeof s.q === 'number' ? s.q : (s.est ? 0 : 2) };
         if (s.on && s.exp !== undefined) o.exp = s.exp;
-        if (s.est) o.est = true;
         return o;
       })
       .sort((a, b) => a.t - b.t || (a.on === b.on ? 0 : (a.on ? -1 : 1)));
@@ -745,14 +746,13 @@
     let run = [];
     const flush = () => {
       if (!run.length) return;
-      const res = { t: run[0].t, on: run[0].on };
-      if (run[0].on) {
-        let expSample = null;                       // ON 區間：採用最新一筆有明確 exp 的值
+      let pick = run[0];
+      run.forEach(s => { if (s.q > pick.q) pick = s; });
+      const res = { t: pick.t, on: pick.on, q: pick.q };
+      if (pick.on) {
+        let expSample = null;
         run.forEach(s => { if (s.exp !== undefined) expSample = s; });
-        if (expSample) res.exp = expSample.exp;     // exp=0 代表「明確無自動關閉」
-      } else {
-        const real = run.find(s => !s.est);         // OFF 區間：真實觀測優先於中點估算
-        if (real) res.t = real.t; else res.est = true;
+        if (expSample) res.exp = expSample.exp;
       }
       out.push(res);
       run = [];
@@ -776,7 +776,29 @@
   function canonSamples(device, samples) {
     const minT = clearTs[device];
     const list = (Array.isArray(samples) ? samples : []).filter(s => s && (!minT || s.t >= minT));
-    return trimSamples(normalizeSamples(list));
+    let arr = normalizeSamples(list);
+    if (device === 'heater') arr = normalizeSamples(deriveHeaterOff(arr));
+    return trimSamples(arr);
+  }
+
+  /* 熱水器無法直接關閉，必須由上游的加壓馬達斷電才算真正關閉：
+   * 凡是加壓馬達記錄為「關」的時刻，若熱水器當時記錄為「開」，就同時補一筆熱水器「關」
+   * （沿用馬達該筆的時間與可信度；之後熱水器必須再有自己的「開」才會重新開始計時）。 */
+  function deriveHeaterOff(heaterArr) {
+    const extra = [];
+    onTimeLog.pump.filter(s => !s.on).forEach(p => {
+      let st = false;
+      for (const h of heaterArr) { if (h.t <= p.t) st = h.on; else break; }
+      if (st) extra.push({ t: p.t, on: false, q: typeof p.q === 'number' ? p.q : 2 });
+    });
+    return extra.length ? heaterArr.concat(extra) : heaterArr;
+  }
+
+  /* 馬達紀錄變動後，重新推導熱水器紀錄 */
+  function rederiveHeater() {
+    const before = JSON.stringify(onTimeLog.heater);
+    onTimeLog.heater = canonSamples('heater', onTimeLog.heater);
+    if (JSON.stringify(onTimeLog.heater) !== before) { saveOnTimeLog(); scheduleSync('heater'); }
   }
 
   /* ---- 快照同步至 broker（retain）----
@@ -805,6 +827,7 @@
   });
 
   function finishChange(device) {
+    if (device === 'pump') rederiveHeater();
     saveOnTimeLog();
     scheduleSync(device);
     updateOnTimeStats();
@@ -828,11 +851,84 @@
     finishChange(device);
   }
 
-  /* 記錄一筆電源狀態：只記「裝置確認後的狀態變化」，相同狀態不重複新增。
-   * 不再於按下按鈕當下預先記錄（舊版發起端的時間點會早於裝置真正動作，
-   * 例如熱水器實際比按鈕晚 11 秒才開，造成發起端比旁觀端多算）。 */
+  /* ---- 以裝置的 Timer 設定，推算「網頁關閉期間」發生過的排程開關 ----
+   * 重新連線時先讀取 Timer1~16，再用排程回放離線區間；回放結果必須和裝置目前實際狀態一致才採用，
+   * 否則退回中點估算。例如昨晚 18:30 開、18:40 關，今早才開網頁，就能還原為 10 分鐘而非一路算到現在。 */
+  const timerCache = { pump: {}, heater: {} };
+  const timersReady = { pump: false, heater: false };
+  const deferredSample = { pump: null, heater: null };
+  const deferTimer = {};
+
+  function queryAllTimers() {
+    ['pump', 'heater'].forEach(dev => {
+      timerCache[dev] = {};
+      timersReady[dev] = false;
+      const cmds = ['Timers'].concat(Array.from({ length: 16 }, (_, i) => `Timer${i + 1}`)).join('; ');
+      client.publish(`cmnd/${dev}/Backlog0`, cmds);
+      clearTimeout(deferTimer[dev]);
+      deferTimer[dev] = setTimeout(() => flushDeferred(dev), 4000);
+    });
+  }
+
+  function flushDeferred(dev) {
+    clearTimeout(deferTimer[dev]);
+    timersReady[dev] = true;
+    const d = deferredSample[dev];
+    deferredSample[dev] = null;
+    if (d) recordPowerSample(dev, d[0], d[1]);
+  }
+
+  function cacheTimers(dev, msgStr) {
+    let j;
+    try { j = JSON.parse(msgStr); } catch (e) { return; }
+    if (!j || typeof j !== 'object') return;
+    Object.keys(j).forEach(k => {
+      const m = k.match(/^Timer(\d+)$/);
+      if (m && j[k] && typeof j[k] === 'object') timerCache[dev][+m[1]] = j[k];
+    });
+    if (typeof j.Timers === 'string') timerCache[dev].global = (j.Timers.toUpperCase() === 'ON');
+    if (!timersReady[dev]) {
+      const cnt = Object.keys(timerCache[dev]).filter(k => k !== 'global').length;
+      if (cnt >= 16) flushDeferred(dev);
+    }
+  }
+
+  function scheduleReplay(device, from, to, startOn, endOn) {
+    const c = timerCache[device];
+    const evs = [];
+    if (c.global !== false) {
+      const day0 = new Date(Math.max(from, to - 8 * 86400000));
+      day0.setHours(0, 0, 0, 0);
+      for (const d = new Date(day0); d.getTime() <= to; d.setDate(d.getDate() + 1)) {
+        Object.keys(c).forEach(k => {
+          const tm = c[k];
+          if (k === 'global' || !tm) return;
+          const armed = tm.Enable !== undefined ? tm.Enable : tm.Arm;
+          if (!armed || (tm.Mode || 0) !== 0 || (tm.Output || 1) !== 1) return;
+          if (tm.Action !== 0 && tm.Action !== 1) return;
+          if (String(tm.Days || '')[d.getDay()] !== '1') return;
+          const m = String(tm.Time).match(/^(\d{1,2}):(\d{2})$/);
+          if (!m) return;
+          const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate(), +m[1], +m[2], 0).getTime();
+          if (ts > from && ts < to) evs.push({ t: ts, on: tm.Action === 1 });
+        });
+      }
+    }
+    evs.sort((a, b) => a.t - b.t);
+    let st = startOn;
+    const out = [];
+    evs.forEach(e => { if (e.on !== st) { out.push({ t: e.t, on: e.on, q: 1.5 }); st = e.on; } });
+    return st === endOn ? out : null;
+  }
+
+  /* 記錄一筆電源狀態：只記裝置確認後的狀態變化，相同狀態不重複新增 */
   function recordPowerSample(device, isOn, expOff) {
     if (device !== 'pump' && device !== 'heater') return;
+    /* 重新連線後的第一筆狀態：先等 Timer 設定載入（最多 4 秒），才能推算離線期間的排程 */
+    if (pendingBridge[device] && !timersReady[device] && client && client.connected) {
+      deferredSample[device] = [isOn, expOff];
+      return;
+    }
     const now = Date.now();
     const log = onTimeLog[device];
     let last = log[log.length - 1];
@@ -843,11 +939,17 @@
       pendingExp[device] = null;
     }
 
-    /* 斷線區間橋接：離線前開著、回線已關 → 以中點估算（標記為估算，之後有真實 OFF 會被取代） */
-    if (pendingBridge[device] && last && last.on && !isOn && (now - last.t) > GAP_THRESHOLD_MS) {
-      log.push({ t: Math.floor((last.t + now) / 2), on: false, est: true });
+    const gap = !!(pendingBridge[device] && last && (now - last.t) > GAP_THRESHOLD_MS);
+    if (gap) {
+      const sch = scheduleReplay(device, last.t, now, last.on, isOn);
+      if (sch) {
+        sch.forEach(s => log.push(s));
+        if (sch.length) changed = true;
+      } else if (last.on && !isOn) {
+        log.push({ t: Math.floor((last.t + now) / 2), on: false, q: 0 });
+        changed = true;
+      }
       last = log[log.length - 1];
-      changed = true;
     }
     pendingBridge[device] = false;
 
@@ -857,7 +959,7 @@
       return;
     }
 
-    const sample = { t: now, on: isOn };
+    const sample = { t: now, on: isOn, q: gap ? 1 : 2 };
     if (isOn && expOff !== undefined) sample.exp = expOff;
     log.push(sample);
     onTimeLog[device] = canonSamples(device, log);
@@ -871,7 +973,7 @@
     const before = JSON.stringify(onTimeLog[device]);
     onTimeLog[device] = canonSamples(device, onTimeLog[device].concat(samples));
     const changed = JSON.stringify(onTimeLog[device]) !== before;
-    if (changed) saveOnTimeLog();
+    if (changed) { if (device === 'pump') rederiveHeater(); saveOnTimeLog(); }
     return changed;
   }
 
@@ -884,7 +986,7 @@
     if (isNaN(t) || t < Date.UTC(2020, 0, 1)) return;        // 裝置尚未對時的無效時間
     evSeen[dev][topic] = t;
     const v = payload.trim().toUpperCase();
-    mergeSamples(dev, [{ t, on: (v === '1' || v === 'ON') }]);
+    mergeSamples(dev, [{ t, on: (v === '1' || v === 'ON'), q: 3 }]);
     updateOnTimeStats();
   }
 
@@ -906,7 +1008,7 @@
   function mergeDeviceAnchor(device, kind, timeStr) {
     const t = Date.parse(timeStr);
     if (isNaN(t)) return;
-    mergeSamples(device, [{ t, on: kind === 'on' }]);
+    mergeSamples(device, [{ t, on: kind === 'on', q: 3 }]);
     updateOnTimeStats();
   }
 
@@ -1206,6 +1308,7 @@
       client.subscribe('tele/pump/ev/+');
       client.subscribe('tele/heater/ev/+');
       setTimeout(pruneOldEvents, 6000);
+      queryAllTimers();
       /* 清除標記：任何一台裝置清除後，其他裝置據此丟棄舊樣本 */
       client.subscribe('tele/pump/clearstat');
       client.subscribe('tele/heater/clearstat');
@@ -1228,6 +1331,8 @@
 
       const evMatch = topic.match(/^tele\/(pump|heater)\/ev\/(.+)$/);
       if (evMatch) { handleDeviceEvent(evMatch[1], topic, evMatch[2], msgStr); return; }
+      const resMatch = topic.match(/^stat\/(pump|heater)\/RESULT$/);
+      if (resMatch) cacheTimers(resMatch[1], msgStr);
 
       /* Retained 快照：以聯集方式合併，不覆蓋本機樣本 */
       if (topic === 'tele/pump/stat24' || topic === 'tele/heater/stat24') {
