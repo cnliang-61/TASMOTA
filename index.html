@@ -1030,35 +1030,33 @@
     const cutoff = Date.now() - STAT_WINDOW_MS;
 
     if (device === 'heater') {
-      /* 上游約束：熱水器 ON 區間 ∩ 加壓馬達 ON 區間 */
-      const hSegs = buildOnSegments(onTimeLog.heater, cutoff);
-      const pSegs = buildOnSegments(onTimeLog.pump, cutoff);
-      let total = 0;
-      for (const [hs, he] of hSegs) {
-        for (const [ps, pe] of pSegs) {
-          const s = Math.max(hs, ps);
-          const e = Math.min(he, pe);
-          if (e > s) total += e - s;
-        }
-      }
-      return total;
+      return heaterSegments(cutoff).reduce((acc, [s, e]) => acc + (e - s), 0);
     }
 
     const segs = buildOnSegments(onTimeLog[device], cutoff);
     return segs.reduce((acc, [s, e]) => acc + (e - s), 0);
   }
 
-  /* 取得某裝置在 cutoff 之後的 ON 區間；熱水器仍只計入與馬達同時開啟的交集 */
-  function getOnSegments(device, cutoff) {
-    const own = buildOnSegments(onTimeLog[device], cutoff);
-    if (device !== 'heater') return own;
+  /* 熱水器有效區間：熱水器的「開」必須發生在某一段馬達開啟期間之內，
+   * 並且最晚只算到那一段馬達開啟結束。熱水器要等馬達斷電才算真正關閉，
+   * 所以開在「馬達關閉之前」的舊紀錄（例如殘留的 ON）不可能延續到之後的馬達開啟期間，一律不計。 */
+  function heaterSegments(cutoff) {
+    const hSegs = buildOnSegments(onTimeLog.heater, cutoff);
     const pSegs = buildOnSegments(onTimeLog.pump, cutoff);
+    const TOL = 30000;   // 容許裝置時鐘/觀測的些微先後差
     const res = [];
-    own.forEach(([hs, he]) => pSegs.forEach(([ps, pe]) => {
-      const s = Math.max(hs, ps), e = Math.min(he, pe);
+    hSegs.forEach(([hs, he]) => {
+      const p = pSegs.find(([ps, pe]) => hs >= ps - TOL && hs < pe);
+      if (!p) return;
+      const s = Math.max(hs, p[0]), e = Math.min(he, p[1]);
       if (e > s) res.push([s, e]);
-    }));
+    });
     return res;
+  }
+
+  /* 取得某裝置在 cutoff 之後的 ON 區間 */
+  function getOnSegments(device, cutoff) {
+    return device === 'heater' ? heaterSegments(cutoff) : buildOnSegments(onTimeLog[device], cutoff);
   }
 
   /* 每小時（整點切分）開啟時間：目前小時 + 前 24 個整點小時 = 25 列 */
@@ -1608,7 +1606,10 @@
     }
 
     if (powerState) {
-      recordPowerSample(elementId === 'pump-power' ? 'pump' : 'heater', powerState.toUpperCase() === 'ON');
+      /* 馬達關閉/離線時，熱水器回報的 ON 是殘留的舊狀態（例如 retained），不記錄 */
+      if (!(elementId === 'heater-power' && powerState.toUpperCase() === 'ON' && isPumpOff())) {
+        recordPowerSample(elementId === 'pump-power' ? 'pump' : 'heater', powerState.toUpperCase() === 'ON');
+      }
       updatePowerUI(elementId, powerState);
 
       // 判斷熱水器狀態以決定「煮水剩餘時間」
