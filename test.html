@@ -1077,6 +1077,8 @@
   }
 
   let msgCount = 0;
+  let subResult = '（尚無回應）';
+  const recentTopics = [];
   const pageLoadedAt = Date.now();
   const APP_VERSION = '2026-11-05 事件紀錄+Timer排程推算+熱水器有效區間';
   function renderDiag() {
@@ -1088,6 +1090,8 @@
     const lines = [
       '版本：' + APP_VERSION,
       `頁面已開啟 ${Math.round((Date.now() - pageLoadedAt) / 1000)} 秒；MQTT ${client && client.connected ? '已連線' : '未連線'}；已收到訊息 ${msgCount} 則`,
+      `事件主題訂閱結果：${subResult}`,
+      `最近收到的 12 則訊息主題：\n  ${recentTopics.join('\n  ')}`,
       `清除標記：馬達 ${clearTs.pump ? f(clearTs.pump) : '無'}、熱水器 ${clearTs.heater ? f(clearTs.heater) : '無'}`,
       `收到的裝置事件：馬達 ${Object.keys(evSeen.pump).length} 筆、熱水器 ${Object.keys(evSeen.heater).length} 筆`,
       `Timer 設定：馬達 ${cnt(timerCache.pump)} 筆、熱水器 ${cnt(timerCache.heater)} 筆`
@@ -1354,8 +1358,9 @@
       client.subscribe('tele/heater/lastoff');
       /* 裝置端事件記錄：每次開/關都在 broker 留下一筆 retained（tele/<dev>/ev/<時間戳>），
          即使所有網頁都關著、或由 Tasmota 網頁/定時器/其他 App 操作，開啟網頁後也能完整補回 */
-      client.subscribe('tele/pump/ev/+');
-      client.subscribe('tele/heater/ev/+');
+      client.subscribe(['tele/pump/ev/+', 'tele/heater/ev/+'], { qos: 1 }, (err, granted) => {
+        subResult = err ? ('錯誤：' + err.message) : (granted || []).map(g => `${g.topic} → QoS ${g.qos}`).join('；');
+      });
       setTimeout(pruneOldEvents, 6000);
       queryAllTimers();
       /* 清除標記：任何一台裝置清除後，其他裝置據此丟棄舊樣本 */
@@ -1378,6 +1383,8 @@
     client.on('message', (topic, message) => {
       const msgStr = message.toString();
       msgCount++;
+      recentTopics.push(topic);
+      if (recentTopics.length > 12) recentTopics.shift();
 
       const evMatch = topic.match(/^tele\/(pump|heater)\/ev\/(.+)$/);
       if (evMatch) { handleDeviceEvent(evMatch[1], topic, evMatch[2], msgStr); return; }
