@@ -1342,30 +1342,31 @@
       brokerDiv.innerText = 'MQTT Broker：🟢 正常連線中';
       brokerDiv.className = 'status-bar status-green';
 
-      client.subscribe('tele/pump/LWT');
-      client.subscribe('tele/heater/LWT');
       client.subscribe('stat/pump/+');
       client.subscribe('stat/heater/+');
-      client.subscribe('tele/pump/STATE');
-      client.subscribe('tele/heater/STATE');
+
+      /* tele 主題改用兩個萬用訂閱：涵蓋 LWT、STATE、stat24、laston/lastoff、clearstat 與 ev 事件。
+         原本逐一訂閱共 16 個，且 ev 的訂閱被 EMQX 回報錯誤；萬用訂閱被拒時才退回逐一訂閱。 */
+      const teleList = [];
+      ['pump', 'heater'].forEach(d => {
+        ['LWT', 'STATE', 'stat24', 'laston', 'lastoff', 'clearstat'].forEach(n => teleList.push(`tele/${d}/${n}`));
+        teleList.push(`tele/${d}/ev/+`);
+      });
+      client.subscribe(['tele/pump/#', 'tele/heater/#'], { qos: 0 }, (err, granted) => {
+        const bad = err || (granted || []).some(g => g.qos === 128);
+        if (!bad) { subResult = '萬用訂閱成功：' + (granted || []).map(g => g.topic).join('、'); return; }
+        subResult = '萬用訂閱被拒（' + (err ? err.message : 'QoS 128') + '），改為逐一訂閱';
+        teleList.forEach(tp => client.subscribe(tp, { qos: 0 }, (e, g) => {
+          if (e || (g || []).some(x => x.qos === 128)) subResult += `；${tp} 失敗`;
+        }));
+      });
 
       /* 訂閱 Retained 快照 + 裝置端 laston/lastoff 錨點（開啟即自動載入） */
-      client.subscribe('tele/pump/stat24');
-      client.subscribe('tele/heater/stat24');
-      client.subscribe('tele/pump/laston');
-      client.subscribe('tele/pump/lastoff');
-      client.subscribe('tele/heater/laston');
-      client.subscribe('tele/heater/lastoff');
       /* 裝置端事件記錄：每次開/關都在 broker 留下一筆 retained（tele/<dev>/ev/<時間戳>），
          即使所有網頁都關著、或由 Tasmota 網頁/定時器/其他 App 操作，開啟網頁後也能完整補回 */
-      client.subscribe(['tele/pump/ev/+', 'tele/heater/ev/+'], { qos: 1 }, (err, granted) => {
-        subResult = err ? ('錯誤：' + err.message) : (granted || []).map(g => `${g.topic} → QoS ${g.qos}`).join('；');
-      });
       setTimeout(pruneOldEvents, 6000);
       queryAllTimers();
       /* 清除標記：任何一台裝置清除後，其他裝置據此丟棄舊樣本 */
-      client.subscribe('tele/pump/clearstat');
-      client.subscribe('tele/heater/clearstat');
 
       /* 先等 broker 既有快照載入再允許本機發布（4 秒後視為 broker 上沒有快照） */
       remoteLoaded.pump = false;
