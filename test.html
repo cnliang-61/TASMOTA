@@ -1076,6 +1076,8 @@
     return res;
   }
 
+  let msgCount = 0;
+  const pageLoadedAt = Date.now();
   const APP_VERSION = '2026-11-05 事件紀錄+Timer排程推算+熱水器有效區間';
   function renderDiag() {
     const el = document.getElementById('diag');
@@ -1085,10 +1087,15 @@
     const cnt = o => Object.keys(o).filter(k => k !== 'global').length;
     const lines = [
       '版本：' + APP_VERSION,
+      `頁面已開啟 ${Math.round((Date.now() - pageLoadedAt) / 1000)} 秒；MQTT ${client && client.connected ? '已連線' : '未連線'}；已收到訊息 ${msgCount} 則`,
+      `清除標記：馬達 ${clearTs.pump ? f(clearTs.pump) : '無'}、熱水器 ${clearTs.heater ? f(clearTs.heater) : '無'}`,
       `收到的裝置事件：馬達 ${Object.keys(evSeen.pump).length} 筆、熱水器 ${Object.keys(evSeen.heater).length} 筆`,
       `Timer 設定：馬達 ${cnt(timerCache.pump)} 筆、熱水器 ${cnt(timerCache.heater)} 筆`
     ];
     ['pump', 'heater'].forEach(d => {
+      const evs = Object.keys(evSeen[d]).map(k => evSeen[d][k]).sort((a, b) => a - b).slice(-6);
+      lines.push('', `【${d === 'pump' ? '馬達' : '熱水器'}最近收到的裝置事件】`);
+      evs.forEach(ms => lines.push(f(ms)));
       lines.push('', d === 'pump' ? '【馬達紀錄】' : '【熱水器紀錄】（q=可信度）');
       onTimeLog[d].slice(-30).forEach(s => lines.push(`${f(s.t)} ${s.on ? '開' : '關'} q=${s.q}`));
     });
@@ -1370,6 +1377,7 @@
 
     client.on('message', (topic, message) => {
       const msgStr = message.toString();
+      msgCount++;
 
       const evMatch = topic.match(/^tele\/(pump|heater)\/ev\/(.+)$/);
       if (evMatch) { handleDeviceEvent(evMatch[1], topic, evMatch[2], msgStr); return; }
