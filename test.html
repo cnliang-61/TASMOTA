@@ -1080,7 +1080,7 @@
   let subResult = '（尚無回應）';
   const recentTopics = [];
   const pageLoadedAt = Date.now();
-  const APP_VERSION = '2026-11-05 事件紀錄+Timer排程推算+熱水器有效區間';
+  const APP_VERSION = 'v6 2026-11-11 精簡訂閱版';
   function renderDiag() {
     const el = document.getElementById('diag');
     if (!el || !el.parentElement.open) return;
@@ -1345,20 +1345,16 @@
       client.subscribe('stat/pump/+');
       client.subscribe('stat/heater/+');
 
-      /* tele 主題改用兩個萬用訂閱：涵蓋 LWT、STATE、stat24、laston/lastoff、clearstat 與 ev 事件。
-         原本逐一訂閱共 16 個，且 ev 的訂閱被 EMQX 回報錯誤；萬用訂閱被拒時才退回逐一訂閱。 */
-      const teleList = [];
-      ['pump', 'heater'].forEach(d => {
-        ['LWT', 'STATE', 'stat24', 'laston', 'lastoff', 'clearstat'].forEach(n => teleList.push(`tele/${d}/${n}`));
-        teleList.push(`tele/${d}/ev/+`);
-      });
-      client.subscribe(['tele/pump/#', 'tele/heater/#'], { qos: 0 }, (err, granted) => {
-        const bad = err || (granted || []).some(g => g.qos === 128);
-        if (!bad) { subResult = '萬用訂閱成功：' + (granted || []).map(g => g.topic).join('、'); return; }
-        subResult = '萬用訂閱被拒（' + (err ? err.message : 'QoS 128') + '），改為逐一訂閱';
-        teleList.forEach(tp => client.subscribe(tp, { qos: 0 }, (e, g) => {
-          if (e || (g || []).some(x => x.qos === 128)) subResult += `；${tp} 失敗`;
-        }));
+      /* EMQX 似乎限制每個連線（持久工作階段）的訂閱數量：診斷顯示 16 個逐一訂閱中只有 10 個成功。
+         先取消舊的逐一訂閱（持久工作階段會一直保留它們），再改用 4 個萬用訂閱，總數降為 6 個。 */
+      const oldTele = [];
+      ['pump', 'heater'].forEach(d => ['LWT', 'STATE', 'stat24', 'laston', 'lastoff', 'clearstat'].forEach(n => oldTele.push(`tele/${d}/${n}`)));
+      const newTele = ['tele/pump/+', 'tele/heater/+', 'tele/pump/ev/+', 'tele/heater/ev/+'];
+      client.unsubscribe(oldTele.concat(['tele/pump/#', 'tele/heater/#'], newTele), () => {
+        client.subscribe(newTele, { qos: 0 }, (err, granted) => {
+          const bad = (err ? [err.message] : []).concat((granted || []).filter(g => g.qos === 128).map(g => g.topic + ' 被拒'));
+          subResult = bad.length ? ('訂閱失敗：' + bad.join('；')) : ('訂閱成功：' + (granted || []).map(g => g.topic).join('、'));
+        });
       });
 
       /* 訂閱 Retained 快照 + 裝置端 laston/lastoff 錨點（開啟即自動載入） */
