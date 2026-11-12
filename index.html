@@ -411,6 +411,14 @@
     .hbar { position: relative; background: #181825; border-radius: 3px; height: 16px; overflow: hidden; }
     .hbar > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--custom-green); opacity: 0.8; }
     .hbar > span { position: relative; font-size: 0.75rem; line-height: 16px; color: #fff; }
+    .rules-section { margin-top: 28px; padding-top: 18px; border-top: 1px solid #45475a; }
+    .rules-section h3 { color: var(--accent-color); font-size: 1rem; margin: 16px 0 6px; }
+    .rule-row { background: #181825; border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 0.82rem; }
+    .rule-row .rule-title { font-weight: bold; margin-bottom: 4px; }
+    .rule-row .rule-note { color: #a6adc8; margin-bottom: 4px; }
+    .rule-line { display: flex; align-items: flex-start; gap: 8px; margin: 3px 0; }
+    .rule-line code { flex: 1 1 0; min-width: 0; width: auto; display: block; word-break: break-all; white-space: normal; background: #11111b; padding: 4px 6px; border-radius: 4px; }
+    .rule-line button { flex: 0 0 auto !important; width: auto !important; min-width: 0; margin: 0 !important; padding: 4px 10px !important; font-size: 0.75rem; border-radius: 4px; border: 1px solid #585b70; background: #313244; color: #cdd6f4; cursor: pointer; white-space: nowrap; }
     .stat-hint {
       text-align: center;
       font-size: 0.8rem;
@@ -495,9 +503,6 @@
       <div id="pump-remaining-display" class="remaining-window">⏳ 加壓馬達剩餘時間：00:00</div>
       <div id="heater-remaining-display" class="remaining-window">⏳ 煮水剩餘時間：00:00</div>
     </div>
-
-    <!-- 重新整理最新狀態按鈕 -->
-    <button class="btn-secondary" onclick="refreshStatus()">🔄 重新整理最新狀態</button>
 
     <!-- 左右雙欄控制按鈕區塊 -->
     <div class="control-grid-container">
@@ -618,24 +623,73 @@
       <tbody id="hourly-body"></tbody>
     </table>
     <div class="stat-hint">以整點切分，最上列為目前進行中的小時；每格長條滿格 = 60 分鐘。</div>
+    <details ontoggle="renderDiag()" style="margin-top:15px;font-size:0.8rem;color:#a6adc8;">
+      <summary style="cursor:pointer;">診斷資訊（除錯用）</summary>
+      <pre id="diag" style="white-space:pre-wrap;word-break:break-all;background:#181825;padding:8px;border-radius:6px;max-height:260px;overflow:auto;"></pre>
+    </details>
     <button class="btn-secondary" onclick="clearOnTimeStats()">🗑️ 清除統計資料（含雲端快照）</button>
   </div>
   
       <div class="stat-hint">
       🌐 統計資料同時保存在 <b>HiveMQ Broker（Retain 快照）</b>與本機瀏覽器，<br>
       任何裝置開啟網頁即自動合併，多台裝置數據一致，重整/重開瀏覽器不丟失。<br>
-      🔧 <b>必做（一次性設定）</b>：若要讓「Tasmota 網頁、定時器、其他 MQTT App」造成的開關也被完整記錄（即使本網頁關閉），請在兩台 Tasmota 的「主控台」各執行：<br>
-      <b>加壓馬達：</b><br>
-      <code>Rule3 ON Power1#state=1 DO Publish2 tele/pump/ev/%timestamp% 1 ENDON ON Power1#state=0 DO Publish2 tele/pump/ev/%timestamp% 0 ENDON</code><br>
-      再輸入 <code>Rule3 1</code><br>
-      <b>熱水器：</b><br>
-      <code>Rule3 ON Power1#state=1 DO Publish2 tele/heater/ev/%timestamp% 1 ENDON ON Power1#state=0 DO Publish2 tele/heater/ev/%timestamp% 0 ENDON</code><br>
-      再輸入 <code>Rule3 1</code>（若 Rule3 已被佔用請改用其他編號）<br>
-      每次開/關，裝置會用自己的時鐘在 broker 留下一筆紀錄，任何裝置開啟網頁即自動補回；超過 72 小時的舊紀錄會自動清理。<br>
-      （先前的 laston/lastoff 規則可繼續保留，作為輔助。）<br>
+      🔧 要讓「Tasmota 網頁、定時器、其他 MQTT App」造成的開關在本網頁關閉時也能被記錄，請依頁面<b>最下方「Tasmota 規則設定」</b>設定兩台開關的 Rule。<br>
       ※ 同一台裝置請勿同時開兩個分頁（固定 ClientID 會互踢），不同裝置沒有此問題。
     </div>
   
+
+  <!-- Tasmota 規則設定（頁面最下方） -->
+  <div class="rules-section">
+    <h2 class="section-title">Tasmota 規則設定（Rule1–Rule3）</h2>
+    <div class="stat-hint">
+      在各開關 Tasmota 的「主控台」逐行輸入。<b>每條規則都要輸入兩行</b>：先存內容，再輸入「啟用」那一行。
+      每個空位只放一個 ON…ENDON，避免內容被截斷。輸入完請單獨輸入 <code>Rule1</code>、<code>Rule2</code>、<code>Rule3</code> 讀回，確認 <code>State</code> 為 ON、內容結尾有 <code>ENDON</code>。
+      這些規則讓裝置自己在 broker 留下每次開關的時間，網頁關閉期間的操作也能被統計補回。
+    </div>
+
+    <h3>加壓馬達（主題 pump）</h3>
+    <div class="rule-row">
+      <div class="rule-title">Rule1：開啟事件</div>
+      <div class="rule-note">馬達變成「開」時，留下一筆事件（內容 1）。</div>
+      <div class="rule-line"><code>Rule1 ON Power1#state=1 DO Publish2 tele/pump/ev/%timestamp% 1 ENDON</code><button onclick="copyRuleText(this)">複製</button></div>
+      <div class="rule-line"><code>Rule1 1</code><button onclick="copyRuleText(this)">複製</button></div>
+    </div>
+    <div class="rule-row">
+      <div class="rule-title">Rule2：關閉事件</div>
+      <div class="rule-note">馬達變成「關」時，留下一筆事件（內容 0）。</div>
+      <div class="rule-line"><code>Rule2 ON Power1#state=0 DO Publish2 tele/pump/ev/%timestamp% 0 ENDON</code><button onclick="copyRuleText(this)">複製</button></div>
+      <div class="rule-line"><code>Rule2 1</code><button onclick="copyRuleText(this)">複製</button></div>
+    </div>
+    <div class="rule-row">
+      <div class="rule-title">Rule3（選用）：關閉時清除 PulseTime</div>
+      <div class="rule-note">馬達每次關閉就把 PulseTime1 設為 0，不依賴網頁。不需要可略過；若 Rule3 已被佔用請勿覆蓋。</div>
+      <div class="rule-line"><code>Rule3 ON Power1#state=0 DO PulseTime1 0 ENDON</code><button onclick="copyRuleText(this)">複製</button></div>
+      <div class="rule-line"><code>Rule3 1</code><button onclick="copyRuleText(this)">複製</button></div>
+    </div>
+
+    <h3>熱水器（主題 heater）</h3>
+    <div class="rule-row">
+      <div class="rule-title">Rule1：開啟事件</div>
+      <div class="rule-note">熱水器變成「開」時，留下一筆事件（內容 1）。熱水器只需要這一條：它是靠馬達斷電才關閉，斷電時自己發不出訊息，關閉時間由網頁依馬達的關閉推導。</div>
+      <div class="rule-line"><code>Rule1 ON Power1#state=1 DO Publish2 tele/heater/ev/%timestamp% 1 ENDON</code><button onclick="copyRuleText(this)">複製</button></div>
+      <div class="rule-line"><code>Rule1 1</code><button onclick="copyRuleText(this)">複製</button></div>
+    </div>
+    <div class="rule-row">
+      <div class="rule-title">Rule2、Rule3：不使用</div>
+      <div class="rule-note">舊的 laston/lastoff 規則已被事件規則取代。若還留著，可先停用（不影響統計）：</div>
+      <div class="rule-line"><code>Rule2 0</code><button onclick="copyRuleText(this)">複製</button></div>
+      <div class="rule-line"><code>Rule3 0</code><button onclick="copyRuleText(this)">複製</button></div>
+    </div>
+
+    <h3>檢查與除錯</h3>
+    <div class="rule-row">
+      <div class="rule-title">讀回規則內容</div>
+      <div class="rule-note">輸入後會回傳 State、Length、Rules。</div>
+      <div class="rule-line"><code>Rule1</code><button onclick="copyRuleText(this)">複製</button></div>
+      <div class="rule-line"><code>Rule2</code><button onclick="copyRuleText(this)">複製</button></div>
+      <div class="rule-line"><code>Rule3</code><button onclick="copyRuleText(this)">複製</button></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -854,17 +908,32 @@
   /* ---- 以裝置的 Timer 設定，推算「網頁關閉期間」發生過的排程開關 ----
    * 重新連線時先讀取 Timer1~16，再用排程回放離線區間；回放結果必須和裝置目前實際狀態一致才採用，
    * 否則退回中點估算。例如昨晚 18:30 開、18:40 關，今早才開網頁，就能還原為 10 分鐘而非一路算到現在。 */
+  const TIMER_CACHE_KEY = 'tasmota_timer_cache_v1';
   const timerCache = { pump: {}, heater: {} };
+  const timerFresh = { pump: {}, heater: {} };   // 本次連線實際讀到的 Timer（用來判斷是否讀完）
+  /* Timer 設定存在瀏覽器：熱水器在馬達關閉時是斷電的，離線時讀不到，仍可用上次讀到的設定回放排程 */
+  try {
+    const saved = JSON.parse(localStorage.getItem(TIMER_CACHE_KEY) || 'null');
+    if (saved) ['pump', 'heater'].forEach(d => { if (saved[d] && typeof saved[d] === 'object') timerCache[d] = saved[d]; });
+  } catch (e) {}
+  function saveTimerCache() {
+    try { localStorage.setItem(TIMER_CACHE_KEY, JSON.stringify(timerCache)); } catch (e) {}
+  }
   const timersReady = { pump: false, heater: false };
   const deferredSample = { pump: null, heater: null };
   const deferTimer = {};
 
+  function requestTimers(dev) {
+    if (!client || !client.connected) return;
+    const cmds = ['Timers'].concat(Array.from({ length: 16 }, (_, i) => `Timer${i + 1}`)).join('; ');
+    client.publish(`cmnd/${dev}/Backlog0`, cmds);
+  }
+
   function queryAllTimers() {
     ['pump', 'heater'].forEach(dev => {
-      timerCache[dev] = {};
+      timerFresh[dev] = {};
       timersReady[dev] = false;
-      const cmds = ['Timers'].concat(Array.from({ length: 16 }, (_, i) => `Timer${i + 1}`)).join('; ');
-      client.publish(`cmnd/${dev}/Backlog0`, cmds);
+      requestTimers(dev);
       clearTimeout(deferTimer[dev]);
       deferTimer[dev] = setTimeout(() => flushDeferred(dev), 4000);
     });
@@ -882,15 +951,18 @@
     let j;
     try { j = JSON.parse(msgStr); } catch (e) { return; }
     if (!j || typeof j !== 'object') return;
+    let updated = false;
     Object.keys(j).forEach(k => {
       const m = k.match(/^Timer(\d+)$/);
-      if (m && j[k] && typeof j[k] === 'object') timerCache[dev][+m[1]] = j[k];
+      if (m && j[k] && typeof j[k] === 'object') {
+        timerCache[dev][+m[1]] = j[k];
+        timerFresh[dev][+m[1]] = true;
+        updated = true;
+      }
     });
-    if (typeof j.Timers === 'string') timerCache[dev].global = (j.Timers.toUpperCase() === 'ON');
-    if (!timersReady[dev]) {
-      const cnt = Object.keys(timerCache[dev]).filter(k => k !== 'global').length;
-      if (cnt >= 16) flushDeferred(dev);
-    }
+    if (typeof j.Timers === 'string') { timerCache[dev].global = (j.Timers.toUpperCase() === 'ON'); updated = true; }
+    if (updated) saveTimerCache();
+    if (!timersReady[dev] && Object.keys(timerFresh[dev]).length >= 16) flushDeferred(dev);
   }
 
   function scheduleReplay(device, from, to, startOn, endOn) {
@@ -1054,6 +1126,50 @@
     return res;
   }
 
+  let msgCount = 0;
+  let subResult = '（尚無回應）';
+  const recentTopics = [];
+  const pageLoadedAt = Date.now();
+  function copyRuleText(btn) {
+    const text = btn.parentElement.querySelector('code').textContent;
+    const done = () => { const o = btn.textContent; btn.textContent = '已複製'; setTimeout(() => { btn.textContent = o; }, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => {});
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  }
+  const APP_VERSION = 'v6 2026-11-11 精簡訂閱版';
+  function renderDiag() {
+    const el = document.getElementById('diag');
+    if (!el || !el.parentElement.open) return;
+    const p2 = n => String(n).padStart(2, '0');
+    const f = ms => { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
+    const cnt = o => Object.keys(o).filter(k => k !== 'global').length;
+    const lines = [
+      '版本：' + APP_VERSION,
+      `頁面已開啟 ${Math.round((Date.now() - pageLoadedAt) / 1000)} 秒；MQTT ${client && client.connected ? '已連線' : '未連線'}；已收到訊息 ${msgCount} 則`,
+      `事件主題訂閱結果：${subResult}`,
+      `最近收到的 12 則訊息主題：\n  ${recentTopics.join('\n  ')}`,
+      `清除標記：馬達 ${clearTs.pump ? f(clearTs.pump) : '無'}、熱水器 ${clearTs.heater ? f(clearTs.heater) : '無'}`,
+      `收到的裝置事件：馬達 ${Object.keys(evSeen.pump).length} 筆、熱水器 ${Object.keys(evSeen.heater).length} 筆`,
+      `Timer 設定：馬達 ${cnt(timerCache.pump)} 筆、熱水器 ${cnt(timerCache.heater)} 筆`
+    ];
+    ['pump', 'heater'].forEach(d => {
+      const evs = Object.keys(evSeen[d]).map(k => evSeen[d][k]).sort((a, b) => a - b).slice(-6);
+      lines.push('', `【${d === 'pump' ? '馬達' : '熱水器'}最近收到的裝置事件】`);
+      evs.forEach(ms => lines.push(f(ms)));
+      lines.push('', d === 'pump' ? '【馬達紀錄】' : '【熱水器紀錄】（q=可信度）');
+      onTimeLog[d].slice(-30).forEach(s => lines.push(`${f(s.t)} ${s.on ? '開' : '關'} q=${s.q}`));
+    });
+    lines.push('', '【熱水器有效區間】');
+    heaterSegments(Date.now() - 86400000).forEach(([a, b]) => lines.push(`${f(a)} → ${f(b)}`));
+    el.textContent = lines.join('\n');
+  }
+
   /* 取得某裝置在 cutoff 之後的 ON 區間 */
   function getOnSegments(device, cutoff) {
     return device === 'heater' ? heaterSegments(cutoff) : buildOnSegments(onTimeLog[device], cutoff);
@@ -1113,19 +1229,49 @@
     if (pumpEl) pumpEl.innerText = formatDuration(computeOnTimeMs('pump'));
     if (heaterEl) heaterEl.innerText = formatDuration(computeOnTimeMs('heater'));
     renderHourly();
+    renderDiag();
   }
   setInterval(updateOnTimeStats, 1000);
   updateOnTimeStats();
 
+  /* 情境結束後把馬達 PulseTime1 還原為 0：
+   * 按下情境按鈕時記一個旗標（存在瀏覽器，關掉網頁再開也有效，40 分鐘內有效），
+   * 看到馬達開啟後轉為「等關閉」，馬達因 PulseTime 到時關閉（或被手動關閉）時送出 PulseTime1 0。 */
+  const PULSE_FLAG_KEY = 'pump_pulse_reset_v1';
+  function setPulseFlag(stage) {
+    try {
+      if (stage) localStorage.setItem(PULSE_FLAG_KEY, JSON.stringify({ stage, t: Date.now() }));
+      else localStorage.removeItem(PULSE_FLAG_KEY);
+    } catch (e) {}
+  }
+  function getPulseFlag() {
+    try {
+      const f = JSON.parse(localStorage.getItem(PULSE_FLAG_KEY) || 'null');
+      if (f && Date.now() - f.t < 40 * 60000) return f;
+    } catch (e) {}
+    return null;
+  }
+  function onPumpPowerForPulseReset(isOn) {
+    const f = getPulseFlag();
+    if (!f) return;
+    if (isOn && f.stage === 'waitOn') { setPulseFlag('waitOff'); return; }
+    if (!isOn && f.stage === 'waitOff') {
+      setPulseFlag(null);
+      if (client && client.connected) client.publish('cmnd/pump/PulseTime1', '0');
+    }
+  }
+
   /* 情境按鈕：加壓 runSec 秒（PulseTime 自動關閉時間登記後，由裝置回報 ON 時套用） */
   function runPumpScenario(runSec, pulseCmd) {
     armExpiry('pump', Date.now() + runSec * 1000);
+    setPulseFlag('waitOn');
     publishCmd('cmnd/pump/Backlog', `${pulseCmd}; POWER ON`);
   }
 
   /* 情境按鈕：煮水 runSec 秒（熱水器只計入與馬達同時開啟的時間，故只需登記馬達 exp） */
   function runBoilScenario(runSec, pulseCmd) {
     armExpiry('pump', Date.now() + runSec * 1000);
+    setPulseFlag('waitOn');
     publishCmd('cmnd/pump/Backlog', `${pulseCmd}; POWER ON; Delay 110; Publish cmnd/heater/POWER ON`);
   }
 
@@ -1147,7 +1293,7 @@
       });
       pendingBridge.pump = false;
       pendingBridge.heater = false;
-      refreshStatus();   // 重新取得目前狀態，作為清除後的新起點
+      queryDeviceStates();   // 重新取得目前狀態，作為清除後的新起點
     }
     updateOnTimeStats();
   }
@@ -1287,29 +1433,27 @@
       brokerDiv.innerText = 'MQTT Broker：🟢 正常連線中';
       brokerDiv.className = 'status-bar status-green';
 
-      client.subscribe('tele/pump/LWT');
-      client.subscribe('tele/heater/LWT');
       client.subscribe('stat/pump/+');
       client.subscribe('stat/heater/+');
-      client.subscribe('tele/pump/STATE');
-      client.subscribe('tele/heater/STATE');
+
+      /* EMQX 似乎限制每個連線（持久工作階段）的訂閱數量：診斷顯示 16 個逐一訂閱中只有 10 個成功。
+         先取消舊的逐一訂閱（持久工作階段會一直保留它們），再改用 4 個萬用訂閱，總數降為 6 個。 */
+      const oldTele = [];
+      ['pump', 'heater'].forEach(d => ['LWT', 'STATE', 'stat24', 'laston', 'lastoff', 'clearstat'].forEach(n => oldTele.push(`tele/${d}/${n}`)));
+      const newTele = ['tele/pump/+', 'tele/heater/+', 'tele/pump/ev/+', 'tele/heater/ev/+'];
+      client.unsubscribe(oldTele.concat(['tele/pump/#', 'tele/heater/#'], newTele), () => {
+        client.subscribe(newTele, { qos: 0 }, (err, granted) => {
+          const bad = (err ? [err.message] : []).concat((granted || []).filter(g => g.qos === 128).map(g => g.topic + ' 被拒'));
+          subResult = bad.length ? ('訂閱失敗：' + bad.join('；')) : ('訂閱成功：' + (granted || []).map(g => g.topic).join('、'));
+        });
+      });
 
       /* 訂閱 Retained 快照 + 裝置端 laston/lastoff 錨點（開啟即自動載入） */
-      client.subscribe('tele/pump/stat24');
-      client.subscribe('tele/heater/stat24');
-      client.subscribe('tele/pump/laston');
-      client.subscribe('tele/pump/lastoff');
-      client.subscribe('tele/heater/laston');
-      client.subscribe('tele/heater/lastoff');
       /* 裝置端事件記錄：每次開/關都在 broker 留下一筆 retained（tele/<dev>/ev/<時間戳>），
          即使所有網頁都關著、或由 Tasmota 網頁/定時器/其他 App 操作，開啟網頁後也能完整補回 */
-      client.subscribe('tele/pump/ev/+');
-      client.subscribe('tele/heater/ev/+');
       setTimeout(pruneOldEvents, 6000);
       queryAllTimers();
       /* 清除標記：任何一台裝置清除後，其他裝置據此丟棄舊樣本 */
-      client.subscribe('tele/pump/clearstat');
-      client.subscribe('tele/heater/clearstat');
 
       /* 先等 broker 既有快照載入再允許本機發布（4 秒後視為 broker 上沒有快照） */
       remoteLoaded.pump = false;
@@ -1321,11 +1465,14 @@
         scheduleSync('heater');
       }, 4000);
 
-      refreshStatus();
+      queryDeviceStates();
     });
 
     client.on('message', (topic, message) => {
       const msgStr = message.toString();
+      msgCount++;
+      recentTopics.push(topic);
+      if (recentTopics.length > 12) recentTopics.shift();
 
       const evMatch = topic.match(/^tele\/(pump|heater)\/ev\/(.+)$/);
       if (evMatch) { handleDeviceEvent(evMatch[1], topic, evMatch[2], msgStr); return; }
@@ -1358,6 +1505,11 @@
         recordPowerSample('pump', false);
         pendingBridge.pump = true;
         updatePowerUI('pump-power', 'OFFLINE');
+      }
+      /* 裝置（上電）上線後重新讀取它的 Timer 設定並保存，供之後離線時推算排程 */
+      if ((topic === 'tele/heater/LWT' || topic === 'tele/pump/LWT') && msgStr.toLowerCase() === 'online') {
+        const dv = topic.includes('/pump/') ? 'pump' : 'heater';
+        setTimeout(() => requestTimers(dv), 2500);
       }
       if (topic === 'tele/heater/LWT' && msgStr.toLowerCase() === 'offline') {
         recordPowerSample('heater', false);
@@ -1578,11 +1730,9 @@
     }
   }
 
-  function refreshStatus() {
-    if (!client || !client.connected) {
-      alert('請先連線至 HiveMQ！');
-      return;
-    }
+  /* 連線時自動查詢兩台裝置目前狀態（不再提供手動按鈕） */
+  function queryDeviceStates() {
+    if (!client || !client.connected) return;
     client.publish('cmnd/pump/POWER', '');
     client.publish('cmnd/heater/POWER', '');
     client.publish('cmnd/pump/PulseTime1', '');
@@ -1610,6 +1760,7 @@
       if (!(elementId === 'heater-power' && powerState.toUpperCase() === 'ON' && isPumpOff())) {
         recordPowerSample(elementId === 'pump-power' ? 'pump' : 'heater', powerState.toUpperCase() === 'ON');
       }
+      if (elementId === 'pump-power') onPumpPowerForPulseReset(powerState.toUpperCase() === 'ON');
       updatePowerUI(elementId, powerState);
 
       // 判斷熱水器狀態以決定「煮水剩餘時間」
@@ -1710,7 +1861,8 @@
     const isCurrentlyOn = el.innerText.includes('開啟');
     
     if (isCurrentlyOn) {
-      publishCmd('cmnd/pump/POWER', 'OFF');
+      setPulseFlag(null);
+      publishCmd('cmnd/pump/Backlog', 'POWER OFF; PulseTime1 0');
     } else {
       armExpiry('pump', 0);   // PulseTime1 0：明確無自動關閉
       publishCmd('cmnd/pump/Backlog', 'PulseTime1 0; POWER ON');
